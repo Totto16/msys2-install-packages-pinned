@@ -1,0 +1,14 @@
+name: 'MSYS2 installed packages pinned'
+author: Totto16
+description: 'Install a certain pinned version of MSYS2 packages'
+inputs:
+  msystem:
+    description: 'Variant of the environment to set by default: MSYS, MINGW32, MINGW64, UCRT64, CLANG64 or CLANGARM64'
+    required: false
+    default: 'MINGW64'
+  install:
+    description: 'The packages to install, see README for syntax'
+    required: true
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
