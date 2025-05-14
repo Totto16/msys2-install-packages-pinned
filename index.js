@@ -5,6 +5,9 @@ const exec = require("@actions/exec")
 const io = require("@actions/io")
 const http = require("@actions/http-client")
 const HTMLParser = require("node-html-parser")
+const toolCache = require("@actions/tool-cache")
+const assert = require("node:assert/strict")
+const path = require("node:path")
 
 /**
  * @typedef {"msys" | "mingw32" | "mingw64" | "ucrt64" | "clang64" | "clangarm64"} MSystem
@@ -33,9 +36,17 @@ const HTMLParser = require("node-html-parser")
  */
 
 /**
+ * @typedef {object} Content
+ * @property {string} name
+ * @property {Version} version
+ * @property {string} target
+ * @property {string} ext
+ */
+
+/**
  * @typedef {object} RawPackage
  * @property {string} fullName
- * @property {Version|null} parsedVersion
+ * @property {Content} parsedContent
  * @property {string} fullUrl
  */
 
@@ -61,16 +72,18 @@ function parseIntSafe(inp) {
 
 /**
  * @param {string} inpName
- * @returns {Version|null}
+ * @returns {Content|null}
  */
-function parseVersionFrom(inpName) {
-	const result = inpName.match(/^.*(?:(\d*)\.(\d*)\.(\d*)\-(\d*)).*$/)
+function parseContentFrom(inpName) {
+	const result = inpName.match(
+		/^(.*)\-(?:(\d*)\.(\d*)\.(\d*)\-(\d*))\-(.*)\-(.*)$/
+	)
 
 	if (result === null) {
 		return null
 	}
 
-	const [_, major, minor, patch, rev, ...rest] = result
+	const [_, pkgName, major, minor, patch, rev, target, ext, ...rest] = result
 
 	if (rest.length != 0) {
 		throw new Error("Implementation error, the match has an invalid length")
@@ -84,7 +97,10 @@ function parseVersionFrom(inpName) {
 		rev: parseIntSafe(rev),
 	}
 
-	return version
+	/** @type {Content} */
+	const content = { ext, name: pkgName, target, version }
+
+	return content
 }
 
 /**
@@ -175,11 +191,16 @@ function extractPackages(repoLink, html) {
 			continue
 		}
 
-		const parsedVersion = parseVersionFrom(linkName)
+		const parsedContent = parseContentFrom(linkName)
+
+		if (parsedContent === null) {
+			continue
+		}
+
 		const fullUrl = repoLink + linkName
 
 		/** @type {RawPackage} */
-		const pack = { fullName: linkName, fullUrl, parsedVersion }
+		const pack = { fullName: linkName, fullUrl, parsedContent }
 
 		packages.push(pack)
 	}
@@ -187,6 +208,10 @@ function extractPackages(repoLink, html) {
 	return packages
 }
 
+const MAJOR_MULT = 10 ** 9
+const MINOR_MULT = 10 ** 6
+const PATCH_MULT = 10 ** 3
+const REV_MULT = 1
 /**
  *
  * @param {Package} requestedPackage
@@ -194,7 +219,64 @@ function extractPackages(repoLink, html) {
  * @returns {ResolvedPackage}
  */
 function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
-	throw new Error("TODO")
+	/** @type {RawPackage[]} */
+	const suitablePackages = []
+
+	for (const pkg of allRawPackages) {
+		if (pkg.parsedContent === null) {
+			continue
+		}
+
+		if (pkg.parsedContent.name == requestedPackage.name) {
+			//TODO: filter out package by version e.g. if we have version 15 we dont accept e.g. version 14
+
+			suitablePackages.push(pkg)
+		}
+	}
+
+	if (suitablePackages.length == 0) {
+		throw new Error(
+			`Can't resolve package ${requestedPackage.name} as no suitable packages where found online, requested version: ${requestedPackage.partialVersion}`
+		)
+	}
+
+	//TODO: sort by matching of partialVersions e.g. 14 prefers 14.2 over 14.1, test if this is implemented correctly
+	/**
+	 *
+	 * @param {Content} content
+	 * @returns
+	 */
+	function getCompareNumberFor(content) {
+		return (
+			content.version.major * MAJOR_MULT +
+			content.version.minor * MINOR_MULT +
+			content.version.patch * PATCH_MULT +
+			content.version.rev * REV_MULT
+		)
+	}
+
+	const sortedPackages = suitablePackages.sort((pkgA, pkgB) => {
+		const comparNrA = pkgA.parsedContent
+			? getCompareNumberFor(pkgA.parsedContent)
+			: 0
+
+		const comparNrB = pkgB.parsedContent
+			? getCompareNumberFor(pkgB.parsedContent)
+			: 0
+
+		return comparNrB - comparNrA
+	})
+
+	const rawPackage = sortedPackages[0]
+
+	/** @type {ResolvedPackage} */
+	const resolvedPackage = {
+		fullUrl: rawPackage.fullUrl,
+		name: requestedPackage.name,
+		parsedVersion: rawPackage.parsedContent?.version,
+	}
+
+	return resolvedPackage
 }
 
 /**
@@ -242,13 +324,76 @@ async function resolvePackages(input, msystem) {
 	return selectedPackages
 }
 
+/** @type {string|null} */
+let cmd = null
+
+/**
+ *
+ * @returns {void}
+ */
+function setupCmd() {
+	//TODO: donm't hardcode this path, see https://github.com/msys2/setup-msys2/blob/main/main.js
+
+	const msysRootDir = path.join("C:", "msys64")
+
+	const tmp_dir = process.env["RUNNER_TEMP"]
+	if (!tmp_dir) {
+		core.setFailed("environment variable RUNNER_TEMP is undefined")
+		return
+	}
+
+	const pathDir = path.join(tmp_dir, "setup-msys2")
+
+	cmd = path.join(pathDir, "msys2.cmd")
+}
+
+/**
+ * @see https://github.com/msys2/setup-msys2/blob/main/main.js#L304
+ * @param {string[]} args
+ * @param {object} opts
+ */
+async function runMsys(args, opts) {
+	assert.ok(cmd)
+	const quotedArgs = args.map((arg) => {
+		return `'${arg.replace(/'/g, `'\\''`)}'`
+	}) // fix confused vim syntax highlighting with: `
+	await exec.exec(
+		"cmd",
+		["/D", "/S", "/C", cmd].concat(["-c", quotedArgs.join(" ")]),
+		opts
+	)
+}
+
+/**
+ * @see https://github.com/msys2/setup-msys2/blob/main/main.js#L310C1-L317C2
+ * @param {string[]} args
+ * @param {object} opts
+ * @param {string} [cmd]
+ */
+async function pacman(args, opts, cmd) {
+	await runMsys([cmd ? cmd : "pacman", "--noconfirm"].concat(args), opts)
+}
+
+/**
+ * @async
+ * @param {ResolvedPackage} pkg
+ * @returns {Promise<void>}
+ */
+async function installPackage(pkg) {
+	const pkgPath = await toolCache.downloadTool(pkg.fullUrl)
+
+	await pacman(["-S", "--needed", "--overwrite", "*", pkgPath], {})
+}
+
 /**
  * @async
  * @param {ResolvedPackage[]} packages
  * @returns {Promise<void>}
  */
 async function installPackages(packages) {
-	throw new Error("TODO")
+	for (const pkg of packages) {
+		await installPackage(pkg)
+	}
 }
 
 /**
@@ -295,6 +440,8 @@ async function main() {
 
 		/** @type {MSystem} */
 		const msystem = toMSystem(msystemInput)
+
+		setupCmd()
 
 		const packages = await resolvePackages(installInput, msystem)
 
