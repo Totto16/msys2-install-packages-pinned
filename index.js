@@ -253,10 +253,45 @@ function extractPackages(repoLink, html) {
 	return packages
 }
 
+/**
+ *
+ * @param {Version} version
+ * @returns {string}
+ */
+function versionToString(version) {
+	return `v${version.major}.${version.minor}.${version.patch}-${version.rev}`
+}
+
+/**
+ *
+ * @param {Version|PartialVersion} version
+ * @returns {string}
+ */
+function anyVersionToString(version) {
+	if (version.major === null || version.major === undefined) {
+		return "<Empty version>"
+	}
+
+	if (version.minor === null || version.minor === undefined) {
+		return `v${version.major}`
+	}
+
+	if (version.patch === null || version.patch === undefined) {
+		return `v${version.major}.${version.minor}`
+	}
+
+	if (version.rev === null || version.rev === undefined) {
+		return `v${version.major}.${version.minor}.${version.patch}`
+	}
+
+	return versionToString(/** @type {Version} */ (/** @type {any} */ version))
+}
+
 const MAJOR_MULT = 10 ** 9
 const MINOR_MULT = 10 ** 6
 const PATCH_MULT = 10 ** 3
 const REV_MULT = 1
+
 /**
  *
  * @param {Package} requestedPackage
@@ -281,7 +316,7 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 
 	if (suitablePackages.length == 0) {
 		throw new Error(
-			`Can't resolve package ${requestedPackage.originalName} as no suitable packages where found online, requested version: ${requestedPackage.partialVersion}`
+			`Can't resolve package ${requestedPackage.originalName} as no suitable packages where found online, requested version: ${anyVersionToString(requestedPackage.partialVersion)}`
 		)
 	}
 
