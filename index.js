@@ -204,6 +204,9 @@ function resolveRequestedPackages(input, msystem) {
 function extractPackages(repoLink, html) {
 	const parsedHtml = HTMLParser.parse(html)
 
+	core.info("HTML Content:")
+	core.info(html)
+
 	/**
 	 * @param {HTMLParser.HTMLElement|null} element
 	 * @param {string} message
@@ -405,7 +408,7 @@ async function resolvePackages(input, msystem) {
 
 	const allRawPackages = extractPackages(repoLink, body)
 
-	core.info(`Found ${allRawPackages.length} package in total`)
+	core.info(`Found ${allRawPackages.length} packages in total`)
 
 	const selectedPackages = resolveBestSuitablePackages(
 		requestedPackages,
