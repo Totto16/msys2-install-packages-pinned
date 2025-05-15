@@ -11,7 +11,11 @@ Spec = (<Package> <Space>)*
 
 Space = ' '
 
-Package = <Name>(=<VersionSpecifier>)?
+Package = <Name>(<Equals> <VersionSpecifier>)?
+
+Name = "A valid package name"
+
+Equals = '='
 
 VersionSpecifier = <SpecialVersionSpecifier> | <PartialSemverVersion>
 
