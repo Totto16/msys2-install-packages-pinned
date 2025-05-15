@@ -461,7 +461,9 @@ function toMSystem(input) {
 		case "ucrt64":
 		case "clang64":
 		case "clangarm64":
-			return /** @type {MSystem} */ (/** @type {any} */ input)
+			return /** @type {MSystem} */ (
+				/** @type {any} */ input.toLowerCase()
+			)
 		default:
 			throw new Error(`'${input}' is no valid MSystem`)
 	}
