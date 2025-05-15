@@ -164,12 +164,12 @@ function resolveNamesFromUerInputName(input, msystem) {
 
 /**
  * @async
- * @param {string} input
+ * @param {string} spec
  * @param {MSystem} msystem
  * @returns {Package[]}
  */
-function resolveRequestedPackages(input, msystem) {
-	const rawPackages = input.split(" ")
+function resolveRequestedPackages(spec, msystem) {
+	const rawPackages = spec.split(" ")
 
 	/** @type {Package[]} */
 	const packages = rawPackages.map((inp) => {
@@ -194,6 +194,18 @@ function resolveRequestedPackages(input, msystem) {
 	})
 
 	return packages
+}
+
+/**
+ * @async
+ * @param {string} input
+ * @param {MSystem} msystem
+ * @returns {Package[][]}
+ */
+function resolveRequestedPackageSpecs(input, msystem) {
+	const specs = input.replace(/\r/g, "\n").replace(/\n\n/g, "\n").split("\n")
+
+	return specs.map((spec) => resolveRequestedPackages(spec, msystem))
 }
 
 /**
@@ -475,25 +487,30 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 
 /**
  *
- * @param {Package[]} requestedPackages
+ * @param {Package[][]} requestedPackageSpecs
  * @param {RawPackage[]} allRawPackages
- * @returns {ResolvedPackage[]}
+ * @returns {ResolvedPackage[][]}
  */
-function resolveBestSuitablePackages(requestedPackages, allRawPackages) {
-	return requestedPackages.map((req) =>
-		resolveBestSuitablePackage(req, allRawPackages)
-	)
+function resolveBestSuitablePackageSpecs(
+	requestedPackageSpecs,
+	allRawPackages
+) {
+	return requestedPackageSpecs.map((reqSpec) => {
+		return reqSpec.map((req) =>
+			resolveBestSuitablePackage(req, allRawPackages)
+		)
+	})
 }
 
 /**
  * @async
  * @param {string} input
  * @param {MSystem} msystem
- * @returns {Promise<ResolvedPackage[]>}
+ * @returns {Promise<ResolvedPackage[][]>}
  */
-async function resolvePackages(input, msystem) {
-	/** @type {Package[]} */
-	const requestedPackages = resolveRequestedPackages(input, msystem)
+async function resolvePackageSpecs(input, msystem) {
+	/** @type {Package[][]} */
+	const requestedPackages = resolveRequestedPackageSpecs(input, msystem)
 
 	/** @type {string} */
 	const repoLink = `https://repo.msys2.org/mingw/${msystem}/`
@@ -512,7 +529,7 @@ async function resolvePackages(input, msystem) {
 
 	core.info(`Found ${allRawPackages.length} packages in total`)
 
-	const selectedPackages = resolveBestSuitablePackages(
+	const selectedPackages = resolveBestSuitablePackageSpecs(
 		requestedPackages,
 		allRawPackages
 	)
@@ -650,20 +667,26 @@ function windowsPathToLinuxPath(winPath) {
 
 /**
  * @async
- * @param {ResolvedPackage} pkg
+ * @param {ResolvedPackage[]} pkgs
  * @returns {Promise<void>}
  */
-async function installPackage(pkg) {
-	core.info(`Downloading package '${pkg.name}' with url '${pkg.fullUrl}'`)
-	const pkgPath = await downloadFile(pkg.fullUrl, pkg.name)
+async function installPackages(pkgs) {
+	/** @type {[string[], string[]]} */
+	const paths = [[], []]
 
-	const linuxPkgPath = windowsPathToLinuxPath(pkgPath)
+	for (const pkg of pkgs) {
+		core.info(`Downloading package '${pkg.name}' with url '${pkg.fullUrl}'`)
+		const pkgPath = await downloadFile(pkg.fullUrl, pkg.name)
+		const linuxPkgPath = windowsPathToLinuxPath(pkgPath)
+		paths[0].push(linuxPkgPath)
+		paths[1].push(pkgPath)
+	}
 
-	core.info(`pkgPath is '${pkgPath}' and in linux: '${linuxPkgPath}'`)
+	await pacman(["-U", ...paths[0]], {})
 
-	await pacman(["-U", linuxPkgPath], {})
-
-	await io.rmRF(pkgPath)
+	for (const pkgPath of paths[1]) {
+		await io.rmRF(pkgPath)
+	}
 }
 
 /**
@@ -684,15 +707,15 @@ async function installPrerequisites(msystem) {
 
 /**
  * @async
- * @param {ResolvedPackage[]} packages
+ * @param {ResolvedPackage[][]} packages
  * @param {MSystem} msystem
  * @returns {Promise<void>}
  */
-async function installPackages(packages, msystem) {
+async function installMultiplePackageSpecs(packages, msystem) {
 	await installPrerequisites(msystem)
 
-	for (const pkg of packages) {
-		await installPackage(pkg)
+	for (const pkgs of packages) {
+		await installPackages(pkgs)
 	}
 }
 
@@ -752,9 +775,9 @@ async function main() {
 
 		setupCmd()
 
-		const packages = await resolvePackages(installInput, msystem)
+		const packageSpecs = await resolvePackageSpecs(installInput, msystem)
 
-		await installPackages(packages, msystem)
+		await installMultiplePackageSpecs(packageSpecs, msystem)
 	} catch (error) {
 		if (error instanceof Error) {
 			core.setFailed(error)
