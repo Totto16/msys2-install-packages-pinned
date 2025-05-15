@@ -570,10 +570,13 @@ async function pacman(args, opts, cmd) {
  */
 async function installPackage(pkg) {
 	core.info(`Downloading package '${pkg.name}' with url '${pkg.fullUrl}'`)
-	const pkgPath = await toolCache.downloadTool(pkg.fullUrl)
+	const pkgPathFolder = await toolCache.downloadTool(pkg.fullUrl)
+
+	const pkgPath = path.join(pkgPathFolder, pkg.name)
+
 	core.info(`pkgPath is '${pkgPath}'`)
 
-	await pacman(["-S", "--needed", "--overwrite", "*", pkgPath], {})
+	await pacman(["-U", "--needed", "--overwrite", "*", pkgPath], {})
 }
 
 /**
