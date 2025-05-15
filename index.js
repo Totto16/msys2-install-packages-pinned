@@ -686,9 +686,9 @@ async function installPrerequisites(msystem) {
 
 	const archName = getArchNameFromMSystem(msystem)
 
-	const zstd_package = `mingw-w64-${archName}-zstd`
+	const zstd_arch_package = `mingw-w64-${archName}-zstd`
 
-	await pacman(["-Sy", "zstd", zstd_package], {})
+	await pacman(["-Sy", "zstd", "libzstd", "tar", zstd_arch_package], {})
 }
 
 /**
