@@ -3,13 +3,11 @@
 const assert = require("node:assert/strict")
 const core = require("@actions/core")
 const exec = require("@actions/exec")
-const fsAsync = require("node:fs/promises")
 const fs = require("node:fs")
 const HTMLParser = require("node-html-parser")
 const http = require("@actions/http-client")
 const io = require("@actions/io")
 const path = require("node:path")
-const { DefaultArtifactClient } = require("@actions/artifact")
 
 /**
  * @typedef {"mingw32" | "mingw64" | "ucrt64" | "clang64" | "clangarm64"} MSystem
@@ -625,17 +623,6 @@ async function downloadFile(fileUrl, fileName, downloadFolder = null) {
 			stream.on("close", resolve)
 		})
 	)
-
-	const artifact = new DefaultArtifactClient()
-	const { id, size } = await artifact.uploadArtifact(
-		// name of the artifact
-		`saved-${fileName}`,
-		// files to include (supports absolute and relative paths)
-		[file],
-		path.dirname(file)
-	)
-
-	console.log(`Created artifact with id: ${id} (bytes: ${size}`)
 
 	return file
 }
