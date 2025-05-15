@@ -622,7 +622,7 @@ async function installPackage(pkg) {
 
 	core.info(`pkgPath is '${pkgPath}'`)
 
-	await pacman(["-U", "--needed", "--overwrite", pkgPath], {})
+	await pacman(["-U", pkgPath], {})
 
 	await io.rmRF(pkgPath)
 }
