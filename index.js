@@ -639,11 +639,14 @@ async function installPackage(pkg) {
  * @returns {Promise<void>}
  */
 async function installPrerequisites(msystem) {
+	// update package index
+	await pacman(["-Sy"], {})
+
 	const archName = getArchNameFromMSystem(msystem)
 
 	const zstd_package = `mingw-w64-${archName}-zstd`
 
-	await pacman(["-U", zstd_package], {})
+	await pacman(["-Sy", "zstd", zstd_package], {})
 }
 
 /**
