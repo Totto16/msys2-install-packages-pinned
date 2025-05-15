@@ -77,7 +77,7 @@ function parseIntSafe(inp) {
  */
 function parseContentFrom(inpName) {
 	const result = inpName.match(
-		/^(.*)\-(?:(\d*)\.(\d*)\.(\d*)\-(\d*))\-(.*)\-(.*)$/
+		/^(.*)\-(?:(\d*)\.(\d*)\.(\d*)\-(\d*))\-([^.]*)\.(.*)$/
 	)
 
 	if (result === null) {
@@ -235,14 +235,14 @@ function extractPackages(repoLink, html) {
 
 		//TODO: use the sig to verify things later on
 		if (linkName.endsWith(".sig")) {
-			core.info(`Skipped sig name ${linkName}`)
+			core.debug(`Skipped sig name ${linkName}`)
 			continue
 		}
 
 		const parsedContent = parseContentFrom(linkName)
 
 		if (parsedContent === null) {
-			core.info(`parsedContent is null for: ${linkName}`)
+			core.debug(`parsedContent is null for: '${linkName}'`)
 			continue
 		}
 
@@ -353,6 +353,10 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 
 		return comparNrB - comparNrA
 	})
+
+	for (let i = 0; i < sortedPackages.length; ++i) {
+		core.info(`Sorted package nr. ${i}: '${sortedPackages[i].fullName}'`)
+	}
 
 	const rawPackage = sortedPackages[0]
 
