@@ -34,7 +34,7 @@ MSYS2 recommends `UCRT64` nowadays as the default instead of `MINGW64`.
 * Allowed values: See Syntax below
 * Required
 
-The packages to install, thsi can be a complicated string, wrapped around mulrtiple lines, see the syntax below for more information.
+The packages to install, this can be a complicated string, wrapped around multiple lines, see the syntax below for more information.
 
 ##### Syntax
 
