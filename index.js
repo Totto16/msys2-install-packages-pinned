@@ -418,10 +418,16 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 
 	if (suitablePackages.length == 0) {
 		core.info(
-			`While searching for ${requestedPackage.names.join(", ")} ${anyVersionToString(requestedPackage.partialVersion)}`
+			`While searching for ${requestedPackage.names.join(
+				", "
+			)} ${anyVersionToString(requestedPackage.partialVersion)}`
 		)
 		throw new Error(
-			`Can't resolve package ${requestedPackage.originalName} as no suitable packages where found online, requested version: ${anyVersionToString(requestedPackage.partialVersion)}`
+			`Can't resolve package ${
+				requestedPackage.originalName
+			} as no suitable packages where found online, requested version: ${anyVersionToString(
+				requestedPackage.partialVersion
+			)}`
 		)
 	}
 
@@ -628,11 +634,27 @@ async function installPackage(pkg) {
 }
 
 /**
- * @async
- * @param {ResolvedPackage[]} packages
+ *
+ * @param {MSystem} msystem
  * @returns {Promise<void>}
  */
-async function installPackages(packages) {
+async function installPrerequisites(msystem) {
+	const archName = getArchNameFromMSystem(msystem)
+
+	const zstd_package = `mingw-w64-${archName}-zstd`
+
+	await pacman(["-U", zstd_package], {})
+}
+
+/**
+ * @async
+ * @param {ResolvedPackage[]} packages
+ * @param {MSystem} msystem
+ * @returns {Promise<void>}
+ */
+async function installPackages(packages, msystem) {
+	await installPrerequisites(msystem)
+
 	for (const pkg of packages) {
 		await installPackage(pkg)
 	}
@@ -696,7 +718,7 @@ async function main() {
 
 		const packages = await resolvePackages(installInput, msystem)
 
-		await installPackages(packages)
+		await installPackages(packages, msystem)
 	} catch (error) {
 		if (error instanceof Error) {
 			core.setFailed(error)
