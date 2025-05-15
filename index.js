@@ -4,10 +4,10 @@ const assert = require("node:assert/strict")
 const core = require("@actions/core")
 const exec = require("@actions/exec")
 const fsAsync = require("node:fs/promises")
+const fs = require("node:fs")
 const HTMLParser = require("node-html-parser")
 const http = require("@actions/http-client")
 const io = require("@actions/io")
-const os = require("os")
 const path = require("node:path")
 const { DefaultArtifactClient } = require("@actions/artifact")
 
@@ -605,6 +605,10 @@ async function resolveTempFolder(folderOrEmpty) {
  * @returns {Promise<string>}
  */
 async function downloadFile(fileUrl, fileName, downloadFolder = null) {
+	const folder = await resolveTempFolder(downloadFolder)
+	const file = path.join(folder, fileName)
+	const writeStream = fs.createWriteStream(file)
+
 	const httpClient = new http.HttpClient()
 
 	const result = await httpClient.get(fileUrl)
@@ -613,15 +617,15 @@ async function downloadFile(fileUrl, fileName, downloadFolder = null) {
 		throw new Error(`Error in getting the file: ${fileUrl}`)
 	}
 
-	const body = await result.readBody()
+	await /** @type {Promise<void>} */ (
+		new Promise((resolve, reject) => {
+			const stream = result.message.pipe(writeStream)
 
-	const folder = await resolveTempFolder(downloadFolder)
+			stream.on("error", (err) => reject(err))
+			stream.on("close", resolve)
+		})
+	)
 
-	const file = path.join(folder, fileName)
-
-	await fsAsync.writeFile(file, body, { flush: true })
-
-	const debugRes = await fsAsync.readFile(file)
 	const artifact = new DefaultArtifactClient()
 	const { id, size } = await artifact.uploadArtifact(
 		// name of the artifact
