@@ -233,12 +233,14 @@ function extractPackages(repoLink, html) {
 
 		//TODO: use the sig to verify things later on
 		if (linkName.endsWith(".sig")) {
+			core.info(`Skipped sig name ${linkName}`)
 			continue
 		}
 
 		const parsedContent = parseContentFrom(linkName)
 
 		if (parsedContent === null) {
+			core.info(`parsedContent is null for: ${linkName}`)
 			continue
 		}
 
@@ -308,7 +310,6 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 		}
 
 		if (requestedPackage.names.includes(pkg.parsedContent.name)) {
-			core.debug(`Tried ${pkg.parsedContent.name}`)
 			//TODO: filter out package by version e.g. if we have version 15 we dont accept e.g. version 14
 
 			suitablePackages.push(pkg)
@@ -403,6 +404,8 @@ async function resolvePackages(input, msystem) {
 	const body = await result.readBody()
 
 	const allRawPackages = extractPackages(repoLink, body)
+
+	core.info(`Found ${allRawPackages.length} package in total`)
 
 	const selectedPackages = resolveBestSuitablePackages(
 		requestedPackages,
