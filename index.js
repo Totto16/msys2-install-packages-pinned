@@ -119,9 +119,13 @@ function parseContentFrom(inpName) {
  * @returns {PartialVersion | RequestedVersion}
  */
 function parsePartialVersion(inpName) {
-	// ! means same as the rest e.g. for gcc and gcc-libs
+	// "!"" means same as the rest e.g. for gcc and gcc-libs
 	if (inpName == "!") {
 		return { type: "requested", classification: "same_as_rest" }
+	}
+
+	if (inpName === "") {
+		return {}
 	}
 
 	/** @type {PartialVersion} */
