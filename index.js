@@ -314,6 +314,10 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 
 	const rawPackage = sortedPackages[0]
 
+	core.info(
+		`Resolved package ${requestedPackage.originalName} to '${rawPackage.fullName}'`
+	)
+
 	/** @type {ResolvedPackage} */
 	const resolvedPackage = {
 		fullUrl: rawPackage.fullUrl,
