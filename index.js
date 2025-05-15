@@ -404,7 +404,6 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 			continue
 		}
 
-
 		if (
 			!isCompatibleVersion(
 				pkg.parsedContent.version,
@@ -606,6 +605,9 @@ async function downloadFile(fileUrl, fileName, downloadFolder = null) {
 	const folder = await resolveTempFolder(downloadFolder)
 
 	const file = path.join(folder, fileName)
+
+	core.info("body is:")
+	core.info(body)
 
 	await fsAsync.writeFile(file, body)
 
