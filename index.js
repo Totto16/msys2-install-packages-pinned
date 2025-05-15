@@ -606,9 +606,6 @@ async function downloadFile(fileUrl, fileName, downloadFolder = null) {
 
 	const file = path.join(folder, fileName)
 
-	core.info("body is:")
-	core.info(body)
-
 	await fsAsync.writeFile(file, body)
 
 	return file
@@ -626,6 +623,8 @@ async function installPackage(pkg) {
 	core.info(`pkgPath is '${pkgPath}'`)
 
 	await pacman(["-U", "--needed", "--overwrite", pkgPath], {})
+
+	await io.rmRF(pkgPath)
 }
 
 /**
