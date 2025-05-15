@@ -529,7 +529,7 @@ let cmd = null
  * @returns {void}
  */
 function setupCmd() {
-	//TODO: donm't hardcode this path, see https://github.com/msys2/setup-msys2/blob/main/main.js
+	//TODO: don't hardcode this path, see https://github.com/msys2/setup-msys2/blob/main/main.js
 
 	const msysRootDir = path.join("C:", "msys64")
 
@@ -581,7 +581,13 @@ async function resolveTempFolder(folderOrEmpty) {
 	let finalFolder = folderOrEmpty
 
 	if (finalFolder == null) {
-		const tmpDir = process.env.RUNNER_TEMP || os.tmpdir()
+		const tmpDir = process.env["RUNNER_TEMP"]
+		if (!tmpDir) {
+			throw new Error("environment variable RUNNER_TEMP is undefined")
+		}
+
+		await io.mkdirP(tmpDir)
+
 		finalFolder = path.join(tmpDir, "msys2-pinned-packages")
 	}
 
@@ -647,9 +653,9 @@ async function installPackage(pkg) {
 	core.info(`Downloading package '${pkg.name}' with url '${pkg.fullUrl}'`)
 	const pkgPath = await downloadFile(pkg.fullUrl, pkg.name)
 
-	core.info(`pkgPath is '${pkgPath}'`)
-
 	const linuxPkgPath = windowsPathToLinuxPath(pkgPath)
+
+	core.info(`pkgPath is '${pkgPath}' and in linux: '${linuxPkgPath}'`)
 
 	await pacman(["-U", linuxPkgPath], {})
 
