@@ -1,11 +1,13 @@
 "strict"
 
+const assert = require("node:assert/strict")
 const core = require("@actions/core")
 const exec = require("@actions/exec")
-const http = require("@actions/http-client")
+const fsAsync = require("node:fs/promises")
 const HTMLParser = require("node-html-parser")
-const toolCache = require("@actions/tool-cache")
-const assert = require("node:assert/strict")
+const http = require("@actions/http-client")
+const io = require("@actions/io")
+const os = require("os")
 const path = require("node:path")
 
 /**
@@ -575,15 +577,59 @@ async function pacman(args, opts, cmd) {
 }
 
 /**
+ *
+ * @async
+ * @param {string|null} folderOrEmpty
+ * @returns {Promise<string>}
+ */
+async function resolveTempFolder(folderOrEmpty) {
+	let finalFolder = folderOrEmpty
+
+	if (finalFolder == null) {
+		const tmpDir = process.env.RUNNER_TEMP || os.tmpdir()
+		finalFolder = path.join(tmpDir, "msys2-pinned-packages")
+	}
+
+	await io.mkdirP(finalFolder)
+
+	return finalFolder
+}
+
+/**
+ *
+ * @param {string} fileUrl
+ * @param {string} fileName
+ * @param {string|null} downloadFolder
+ * @returns {Promise<string>}
+ */
+async function downloadFile(fileUrl, fileName, downloadFolder = null) {
+	const httpClient = new http.HttpClient()
+
+	const result = await httpClient.get(fileUrl)
+
+	if (result.message.statusCode != 200) {
+		throw new Error(`Error in getting the file: ${fileUrl}`)
+	}
+
+	const body = await result.readBody()
+
+	const folder = await resolveTempFolder(downloadFolder)
+
+	const file = path.join(folder, fileName)
+
+	await fsAsync.writeFile(file, body)
+
+	return file
+}
+
+/**
  * @async
  * @param {ResolvedPackage} pkg
  * @returns {Promise<void>}
  */
 async function installPackage(pkg) {
 	core.info(`Downloading package '${pkg.name}' with url '${pkg.fullUrl}'`)
-	const pkgPathFolder = await toolCache.downloadTool(pkg.fullUrl)
-
-	const pkgPath = path.join(pkgPathFolder, pkg.name)
+	const pkgPath = await downloadFile(pkg.fullUrl, pkg.name)
 
 	core.info(`pkgPath is '${pkgPath}'`)
 
