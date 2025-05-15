@@ -9,6 +9,7 @@ const http = require("@actions/http-client")
 const io = require("@actions/io")
 const os = require("os")
 const path = require("node:path")
+const { DefaultArtifactClient } = require("@actions/artifact")
 
 /**
  * @typedef {"mingw32" | "mingw64" | "ucrt64" | "clang64" | "clangarm64"} MSystem
@@ -618,7 +619,19 @@ async function downloadFile(fileUrl, fileName, downloadFolder = null) {
 
 	const file = path.join(folder, fileName)
 
-	await fsAsync.writeFile(file, body)
+	await fsAsync.writeFile(file, body, { flush: true })
+
+	const debugRes = await fsAsync.readFile(file)
+	const artifact = new DefaultArtifactClient()
+	const { id, size } = await artifact.uploadArtifact(
+		// name of the artifact
+		`saved-${fileName}`,
+		// files to include (supports absolute and relative paths)
+		[file],
+		path.dirname(file)
+	)
+
+	console.log(`Created artifact with id: ${id} (bytes: ${size}`)
 
 	return file
 }
