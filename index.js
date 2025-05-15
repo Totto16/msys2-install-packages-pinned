@@ -618,6 +618,27 @@ async function downloadFile(fileUrl, fileName, downloadFolder = null) {
 }
 
 /**
+ *
+ * @param {string} winPath
+ * @returns {string}
+ */
+function windowsPathToLinuxPath(winPath) {
+	// Normalize path separators and remove drive colon
+
+	const path = winPath.replace(/\\/g, "/") // Convert backslashes to forward slashes
+
+	const match = path.match(/^([a-zA-Z]):(\/.*)/)
+	if (match !== null) {
+		const driveLetter = match[1].toLowerCase()
+		const rest = match[2]
+		return `/${driveLetter}${rest}`
+	} else {
+		// If path doesn't match the expected pattern, return as-is
+		return path
+	}
+}
+
+/**
  * @async
  * @param {ResolvedPackage} pkg
  * @returns {Promise<void>}
@@ -628,7 +649,9 @@ async function installPackage(pkg) {
 
 	core.info(`pkgPath is '${pkgPath}'`)
 
-	await pacman(["-U", pkgPath], {})
+	const linuxPkgPath = windowsPathToLinuxPath(pkgPath)
+
+	await pacman(["-U", linuxPkgPath], {})
 
 	await io.rmRF(pkgPath)
 }
