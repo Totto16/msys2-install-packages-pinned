@@ -404,12 +404,6 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 			continue
 		}
 
-		core.info(
-			`isCompatibleVersion(${anyVersionToString(pkg.parsedContent.version)},${anyVersionToString(requestedPackage.partialVersion)}) = ${isCompatibleVersion(
-				pkg.parsedContent.version,
-				requestedPackage.partialVersion
-			)}`
-		)
 
 		if (
 			!isCompatibleVersion(
@@ -458,10 +452,6 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 
 		return comparNrB - comparNrA
 	})
-
-	for (let i = 0; i < sortedPackages.length; ++i) {
-		core.info(`Sorted package nr. ${i}: '${sortedPackages[i].fullName}'`)
-	}
 
 	const rawPackage = sortedPackages[0]
 
@@ -633,7 +623,7 @@ async function installPackage(pkg) {
 
 	core.info(`pkgPath is '${pkgPath}'`)
 
-	await pacman(["-U", "--needed", "--overwrite", "*", pkgPath], {})
+	await pacman(["-U", "--needed", "--overwrite", pkgPath], {})
 }
 
 /**
