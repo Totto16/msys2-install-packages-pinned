@@ -291,6 +291,94 @@ function anyVersionToString(version) {
 	return versionToString(/** @type {Version} */ (/** @type {any} */ version))
 }
 
+/**
+ * @typedef {object} EqMatcher
+ * @property {"eq"} type
+ * @property {number} data
+ */
+
+/**
+ * @typedef {object} AnyMatcher
+ * @property {"any"} type
+ */
+
+/**
+ * @typedef {EqMatcher | AnyMatcher} Matcher
+ **/
+
+/**
+ * @typedef {[Matcher, Matcher, Matcher, Matcher]} Matchers
+ **/
+
+/**
+ *
+ * @param {Matcher} matcher
+ * @param {number} value
+ * @returns {boolean}
+ */
+function matchesMatcher(matcher, value) {
+	if (matcher.type === "any") {
+		return true
+	}
+
+	if (matcher.type === "eq") {
+		return matcher.data === value
+	}
+
+	throw new Error(`Unrecognized matcher: ${JSON.stringify(matcher)}`)
+}
+
+/**
+ *
+ * @param {Version} version
+ * @param {PartialVersion} partialVersion
+ * @returns {boolean}
+ */
+function isCompatibleVersion(version, partialVersion) {
+	/** @type {Matchers} */
+	const matchers = [
+		{ type: "any" },
+		{ type: "any" },
+		{ type: "any" },
+		{ type: "any" },
+	]
+
+	if (version.major !== null && version.major !== undefined) {
+		matchers[0] = { type: "eq", data: version.major }
+	}
+
+	if (version.minor !== null && version.minor !== undefined) {
+		matchers[1] = { type: "eq", data: version.minor }
+	}
+
+	if (version.patch !== null && version.patch !== undefined) {
+		matchers[2] = { type: "eq", data: version.patch }
+	}
+
+	if (version.rev !== null && version.rev !== undefined) {
+		matchers[3] = { type: "eq", data: version.rev }
+	}
+
+	/** @type {[number, number, number, number]} */
+	const versionArray = [
+		version.major,
+		version.minor,
+		version.patch,
+		version.rev,
+	]
+
+	for (let i = 0; i < 4; ++i) {
+		const matcher = matchers[i]
+		const versionNum = versionArray[i]
+
+		if (!matchesMatcher(matcher, versionNum)) {
+			return false
+		}
+	}
+
+	return true
+}
+
 const MAJOR_MULT = 10 ** 9
 const MINOR_MULT = 10 ** 6
 const PATCH_MULT = 10 ** 3
@@ -311,11 +399,20 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 			continue
 		}
 
-		if (requestedPackage.names.includes(pkg.parsedContent.name)) {
-			//TODO: filter out package by version e.g. if we have version 15 we dont accept e.g. version 14
-
-			suitablePackages.push(pkg)
+		if (!requestedPackage.names.includes(pkg.parsedContent.name)) {
+			continue
 		}
+
+		if (
+			!isCompatibleVersion(
+				pkg.parsedContent.version,
+				requestedPackage.partialVersion
+			)
+		) {
+			continue
+		}
+
+		suitablePackages.push(pkg)
 	}
 
 	if (suitablePackages.length == 0) {
@@ -353,10 +450,6 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 
 		return comparNrB - comparNrA
 	})
-
-	for (let i = 0; i < sortedPackages.length; ++i) {
-		core.info(`Sorted package nr. ${i}: '${sortedPackages[i].fullName}'`)
-	}
 
 	const rawPackage = sortedPackages[0]
 
