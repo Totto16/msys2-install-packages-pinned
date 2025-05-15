@@ -10,7 +10,7 @@ const assert = require("node:assert/strict")
 const path = require("node:path")
 
 /**
- * @typedef {"msys" | "mingw32" | "mingw64" | "ucrt64" | "clang64" | "clangarm64"} MSystem
+ * @typedef {"mingw32" | "mingw64" | "ucrt64" | "clang64" | "clangarm64"} MSystem
  **/
 
 /**
@@ -31,7 +31,8 @@ const path = require("node:path")
 
 /**
  * @typedef {object} Package
- * @property {string} name
+ * @property {string[]} names
+ * @property {string} originalName
  * @property {PartialVersion} partialVersion
  */
 
@@ -121,17 +122,59 @@ function parsePartialVersion(inpName) {
 }
 
 /**
+ * @param {MSystem} msystem
+ * @returns {string}
+ */
+function getArchNameFromMSystem(msystem) {
+	switch (msystem) {
+		case "mingw32":
+			return "i686"
+		case "mingw64":
+			return "x86_64"
+		case "ucrt64":
+			return "ucrt-x86_64"
+		case "clang64":
+			return "clang-x86_64"
+		case "clangarm64":
+			return "clang-aarch64"
+		default:
+			throw new Error(
+				`UNREACHABLE MSystem '${msystem}' in switch case for getArchNameFromMSystem()`
+			)
+	}
+}
+
+/**
+ * @param {string} input
+ * @param {MSystem} msystem
+ * @returns {string[]}
+ */
+function resolveNamesFromUerInputName(input, msystem) {
+	const archName = getArchNameFromMSystem(msystem)
+
+	const prefix = `mingw-w64-${archName}`
+
+	if (input.startsWith(prefix)) {
+		// if it already has a prefix, we don't strip it, as that would eb something else
+		return [input]
+	}
+
+	return [input, `${prefix}-${input}`]
+}
+
+/**
  * @async
  * @param {string} input
+ * @param {MSystem} msystem
  * @returns {Package[]}
  */
-function resolveRequestedPackages(input) {
+function resolveRequestedPackages(input, msystem) {
 	const rawPackages = input.split(" ")
 
 	/** @type {Package[]} */
 	const packages = rawPackages.map((inp) => {
 		/** @type {Package} */
-		const result = { name: "", partialVersion: {} }
+		const result = { originalName: "", names: [], partialVersion: {} }
 
 		if (inp.includes("=")) {
 			const [name1, ...rest] = inp.split("=")
@@ -140,10 +183,12 @@ function resolveRequestedPackages(input) {
 				throw new Error(`Invalid version specifier, it can't contain =`)
 			}
 
-			result.name = name1
+			result.names = resolveNamesFromUerInputName(name1, msystem)
+			result.originalName = name1
 			result.partialVersion = parsePartialVersion(rest[0])
 		} else {
-			result.name = inp
+			result.names = resolveNamesFromUerInputName(inp, msystem)
+			result.originalName = inp
 		}
 		return result
 	})
@@ -227,7 +272,7 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 			continue
 		}
 
-		if (pkg.parsedContent.name == requestedPackage.name) {
+		if (requestedPackage.names.includes(pkg.parsedContent.name)) {
 			//TODO: filter out package by version e.g. if we have version 15 we dont accept e.g. version 14
 
 			suitablePackages.push(pkg)
@@ -236,7 +281,7 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 
 	if (suitablePackages.length == 0) {
 		throw new Error(
-			`Can't resolve package ${requestedPackage.name} as no suitable packages where found online, requested version: ${requestedPackage.partialVersion}`
+			`Can't resolve package ${requestedPackage.originalName} as no suitable packages where found online, requested version: ${requestedPackage.partialVersion}`
 		)
 	}
 
@@ -272,7 +317,7 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 	/** @type {ResolvedPackage} */
 	const resolvedPackage = {
 		fullUrl: rawPackage.fullUrl,
-		name: requestedPackage.name,
+		name: rawPackage.fullName,
 		parsedVersion: rawPackage.parsedContent?.version,
 	}
 
@@ -299,7 +344,7 @@ function resolveBestSuitablePackages(requestedPackages, allRawPackages) {
  */
 async function resolvePackages(input, msystem) {
 	/** @type {Package[]} */
-	const requestedPackages = resolveRequestedPackages(input)
+	const requestedPackages = resolveRequestedPackages(input, msystem)
 
 	/** @type {string} */
 	const repoLink = `https://repo.msys2.org/mingw/${msystem}/`
@@ -403,7 +448,14 @@ async function installPackages(packages) {
  */
 function toMSystem(input) {
 	switch (input.toLowerCase()) {
+		case "clang32":
+			throw new Error(
+				"MSystem 'clang32' is deprecated and can't be used anymore!"
+			)
+		case "mingw64arm":
+			throw new Error("MSystem 'mingw64arm' is unimplemented for this!")
 		case "msys":
+			throw new Error("MSystem 'msys' is unimplemented for this!")
 		case "mingw32":
 		case "mingw64":
 		case "ucrt64":
