@@ -204,9 +204,6 @@ function resolveRequestedPackages(input, msystem) {
 function extractPackages(repoLink, html) {
 	const parsedHtml = HTMLParser.parse(html)
 
-	core.info("HTML Content:")
-	core.info(html)
-
 	/**
 	 * @param {HTMLParser.HTMLElement|null} element
 	 * @param {string} message
@@ -226,7 +223,9 @@ function extractPackages(repoLink, html) {
 		"pre element"
 	)
 
-	const packageElements = preElement.querySelectorAll("a")
+	const parsedPreElement = HTMLParser.parse(preElement.textContent.trim())
+
+	const packageElements = parsedPreElement.querySelectorAll("a")
 
 	/** @type {RawPackage[]} */
 	const packages = []
