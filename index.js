@@ -308,6 +308,7 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 		}
 
 		if (requestedPackage.names.includes(pkg.parsedContent.name)) {
+			core.debug(`Tried ${pkg.parsedContent.name}`)
 			//TODO: filter out package by version e.g. if we have version 15 we dont accept e.g. version 14
 
 			suitablePackages.push(pkg)
@@ -315,6 +316,9 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 	}
 
 	if (suitablePackages.length == 0) {
+		core.info(
+			`While searching for ${requestedPackage.names.join(", ")} ${anyVersionToString(requestedPackage.partialVersion)}`
+		)
 		throw new Error(
 			`Can't resolve package ${requestedPackage.originalName} as no suitable packages where found online, requested version: ${anyVersionToString(requestedPackage.partialVersion)}`
 		)
