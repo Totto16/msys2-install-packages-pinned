@@ -30,10 +30,20 @@ const path = require("node:path")
  */
 
 /**
+ * @typedef {object} RequestedVersionSameAsTheRest
+ * @property {"requested"} type
+ * @property {"same_as_rest"} classification
+ */
+
+/**
+ * @typedef {RequestedVersionSameAsTheRest} RequestedVersion
+ */
+
+/**
  * @typedef {object} Package
  * @property {string[]} names
  * @property {string} originalName
- * @property {PartialVersion} partialVersion
+ * @property {PartialVersion | RequestedVersion} partialVersion
  */
 
 /**
@@ -106,9 +116,14 @@ function parseContentFrom(inpName) {
 
 /**
  * @param {string} inpName
- * @returns {PartialVersion}
+ * @returns {PartialVersion | RequestedVersion}
  */
 function parsePartialVersion(inpName) {
+	// ! means same as the rest e.g. for gcc and gcc-libs
+	if (inpName == "!") {
+		return { type: "requested", classification: "same_as_rest" }
+	}
+
 	/** @type {PartialVersion} */
 	const version = {}
 
@@ -280,10 +295,20 @@ function versionToString(version) {
 
 /**
  *
- * @param {Version|PartialVersion} version
+ * @param {Version | PartialVersion | RequestedVersion} version
  * @returns {string}
  */
 function anyVersionToString(version) {
+	if (isRequestedVersion(version)) {
+		if (version.classification === "same_as_rest") {
+			return "<same_as_rest>"
+		}
+
+		throw new Error(
+			`Unhandled RequestedVersion: ${JSON.stringify(version)}`
+		)
+	}
+
 	if (version.major === null || version.major === undefined) {
 		return "<Empty version>"
 	}
@@ -391,6 +416,18 @@ function isCompatibleVersion(version, partialVersion) {
 	return true
 }
 
+/**
+ *
+ * @param {RequestedVersion | Version | PartialVersion} version
+ * @returns {version is RequestedVersion}
+ */
+function isRequestedVersion(version) {
+	/** @type {RequestedVersion | {type:undefined}} */
+	const v = /** @type {any} */ (version)
+
+	return v.type === "requested"
+}
+
 const MAJOR_MULT = 10 ** 9
 const MINOR_MULT = 10 ** 6
 const PATCH_MULT = 10 ** 3
@@ -398,11 +435,69 @@ const REV_MULT = 1
 
 /**
  *
+ * @param {Version} version
+ * @returns
+ */
+function getCompareNumberForVersion(version) {
+	return (
+		version.major * MAJOR_MULT +
+		version.minor * MINOR_MULT +
+		version.patch * PATCH_MULT +
+		version.rev * REV_MULT
+	)
+}
+
+/**
+ *
  * @param {Package} requestedPackage
  * @param {RawPackage[]} allRawPackages
+ * @param {Version[]} [prevVersions=[]]
  * @returns {ResolvedPackage}
  */
-function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
+function resolveBestSuitablePackage(
+	requestedPackage,
+	allRawPackages,
+	prevVersions = []
+) {
+	let requestedVersion = requestedPackage.partialVersion
+
+	if (isRequestedVersion(requestedVersion)) {
+		if (prevVersions.length == 0) {
+			throw new Error(
+				`While trying to resolve package '${requestedPackage.originalName}': Can't use a requested version for the first element`
+			)
+		}
+
+		if (requestedVersion.classification === "same_as_rest") {
+			const prevNumbers = prevVersions.map((prev) =>
+				getCompareNumberForVersion(prev)
+			)
+
+			const areAllTheSame = prevNumbers.reduce(
+				(acc, elem, _, allElems) => {
+					if (!acc) {
+						return acc
+					}
+
+					return elem === allElems[0]
+				},
+				true
+			)
+
+			if (!areAllTheSame) {
+				throw new Error(
+					`Selected RequestedVersion "same_as_rest" but not all packages with explicti version where the same, aborting.\n versions where: ${prevVersions.map((ver) => anyVersionToString(ver)).join(", ")}`
+				)
+			}
+
+			requestedVersion = prevVersions[0]
+		} else {
+			throw new Error(
+				`Unhandled RequestedVersion: ${JSON.stringify(requestedVersion)}`
+			)
+		}
+	}
+
 	/** @type {RawPackage[]} */
 	const suitablePackages = []
 
@@ -415,12 +510,7 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 			continue
 		}
 
-		if (
-			!isCompatibleVersion(
-				pkg.parsedContent.version,
-				requestedPackage.partialVersion
-			)
-		) {
+		if (!isCompatibleVersion(pkg.parsedContent.version, requestedVersion)) {
 			continue
 		}
 
@@ -442,28 +532,13 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 		)
 	}
 
-	//TODO: sort by matching of partialVersions e.g. 14 prefers 14.2 over 14.1, test if this is implemented correctly
-	/**
-	 *
-	 * @param {Content} content
-	 * @returns
-	 */
-	function getCompareNumberFor(content) {
-		return (
-			content.version.major * MAJOR_MULT +
-			content.version.minor * MINOR_MULT +
-			content.version.patch * PATCH_MULT +
-			content.version.rev * REV_MULT
-		)
-	}
-
 	const sortedPackages = suitablePackages.sort((pkgA, pkgB) => {
 		const comparNrA = pkgA.parsedContent
-			? getCompareNumberFor(pkgA.parsedContent)
+			? getCompareNumberForVersion(pkgA.parsedContent.version)
 			: 0
 
 		const comparNrB = pkgB.parsedContent
-			? getCompareNumberFor(pkgB.parsedContent)
+			? getCompareNumberForVersion(pkgB.parsedContent.version)
 			: 0
 
 		return comparNrB - comparNrA
@@ -487,6 +562,37 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 
 /**
  *
+ * @param {Package[]} requestedPackages
+ * @param {RawPackage[]} allRawPackages
+ * @returns {ResolvedPackage[]}
+ */
+function resolveBestSuitablePackages(requestedPackages, allRawPackages) {
+	/**
+	 *
+	 * @param {ResolvedPackage[]} acc
+	 * @param {Package} elem
+	 * @returns {ResolvedPackage[]}
+	 */
+	function reduceFn(acc, elem) {
+		/** @type {Version[]} */
+		const prevVersions = acc.map((a) => a.parsedVersion)
+
+		const result = resolveBestSuitablePackage(
+			elem,
+			allRawPackages,
+			prevVersions
+		)
+
+		acc.push(result)
+
+		return acc
+	}
+
+	return requestedPackages.reduce(reduceFn, [])
+}
+
+/**
+ *
  * @param {Package[][]} requestedPackageSpecs
  * @param {RawPackage[]} allRawPackages
  * @returns {ResolvedPackage[][]}
@@ -495,11 +601,9 @@ function resolveBestSuitablePackageSpecs(
 	requestedPackageSpecs,
 	allRawPackages
 ) {
-	return requestedPackageSpecs.map((reqSpec) => {
-		return reqSpec.map((req) =>
-			resolveBestSuitablePackage(req, allRawPackages)
-		)
-	})
+	return requestedPackageSpecs.map((reqSpec) =>
+		resolveBestSuitablePackages(reqSpec, allRawPackages)
+	)
 }
 
 /**
@@ -702,7 +806,10 @@ async function installPrerequisites(msystem) {
 
 	const zstd_arch_package = `mingw-w64-${archName}-zstd`
 
-	await pacman(["-Sy", "zstd", "libzstd", "tar", zstd_arch_package], {})
+	await pacman(
+		["-Sy", "--needed", "zstd", "libzstd", "tar", zstd_arch_package],
+		{}
+	)
 }
 
 /**
