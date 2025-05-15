@@ -1,8 +1,42 @@
-# TODO
+# MSYS2 installed packages pinned
 
-Describe this more
+`msys2-install-packages-pinned` is a GitHub Action (GHA) to install a certain pinned package from [MSYS2](https://www.msys2.org/) environment (i.e. gcc 14, when gcc 15 is the default)
 
-## pseudo syntax
+This was created, since pacman (the package manager MSYS2 uses) doesn't support installing specific versions out of the box.
+
+
+## Usage
+
+```yaml
+  - uses: Totto16/msys2-install-packages-pinned@v1
+      with:
+          msystem: MINGW64
+          install: gcc=14 gcc-libs=!
+```
+
+
+### Options
+
+#### msystem
+
+* Type: `string`
+* Allowed values: `MINGW64 | MINGW32 | UCRT64 | CLANG64 | CLANGARM64`
+* Default: `MINGW64`
+* Optional
+
+The default [environment](https://www.msys2.org/docs/environments/) that is used in the `msys2` command/shell provided by this action.
+
+MSYS2 recommends `UCRT64` nowadays as the default instead of `MINGW64`.
+
+#### install
+
+* Type: `string`
+* Allowed values: See Syntax below
+* Required
+
+The packages to install, thsi can be a complicated string, wrapped around mulrtiple lines, see the syntax below for more information.
+
+##### Syntax
 
 ```html
 All = (<Spec> \n)*

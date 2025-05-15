@@ -3,7 +3,7 @@ author: Totto16
 description: 'Install a certain pinned version of MSYS2 packages'
 inputs:
   msystem:
-    description: 'Variant of the environment to set by default: MSYS, MINGW32, MINGW64, UCRT64, CLANG64 or CLANGARM64'
+    description: 'Variant of the environment to set by default: MINGW32, MINGW64, UCRT64, CLANG64 or CLANGARM64'
     required: false
     default: 'MINGW64'
   install:
