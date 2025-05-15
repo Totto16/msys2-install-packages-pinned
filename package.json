@@ -15,7 +15,9 @@
   },
   "scripts": {
     "check": "tsc --project ./jsconfig.json",
-    "build": "webpack --config webpack.config.js"
+    "build": "webpack --config webpack.config.js",
+    "compile": "npm run check && npm run build"
+
   },
   "devDependencies": {
     "@types/node": "^22.14.1",

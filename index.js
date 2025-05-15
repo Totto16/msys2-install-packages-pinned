@@ -424,9 +424,9 @@ async function main() {
 		/** @type {string} */
 		const os = core.platform.platform
 
-		if (os != "windows") {
+		if (os != "win32") {
 			throw new Error(
-				`Action atm only supported on windows: but are on: ${os}`
+				`Action atm only supported on windows (win32): but are on: ${os}`
 			)
 		}
 
