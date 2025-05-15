@@ -9,7 +9,6 @@
     "@actions/core": "^1.11.1",
     "@actions/exec": "^1.1.1",
     "@actions/http-client": "^2.2.3",
-    "@actions/io": "^1.1.3",
     "@actions/tool-cache": "^2.0.2",
     "node-html-parser": "^7.0.1"
   },
@@ -17,7 +16,6 @@
     "check": "tsc --project ./jsconfig.json",
     "build": "webpack --config webpack.config.js",
     "compile": "npm run check && npm run build"
-
   },
   "devDependencies": {
     "@types/node": "^22.14.1",

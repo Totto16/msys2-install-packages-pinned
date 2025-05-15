@@ -2,7 +2,6 @@
 
 const core = require("@actions/core")
 const exec = require("@actions/exec")
-const io = require("@actions/io")
 const http = require("@actions/http-client")
 const HTMLParser = require("node-html-parser")
 const toolCache = require("@actions/tool-cache")
