@@ -342,20 +342,20 @@ function isCompatibleVersion(version, partialVersion) {
 		{ type: "any" },
 	]
 
-	if (version.major !== null && version.major !== undefined) {
-		matchers[0] = { type: "eq", data: version.major }
+	if (partialVersion.major !== null && partialVersion.major !== undefined) {
+		matchers[0] = { type: "eq", data: partialVersion.major }
 	}
 
-	if (version.minor !== null && version.minor !== undefined) {
-		matchers[1] = { type: "eq", data: version.minor }
+	if (partialVersion.minor !== null && partialVersion.minor !== undefined) {
+		matchers[1] = { type: "eq", data: partialVersion.minor }
 	}
 
-	if (version.patch !== null && version.patch !== undefined) {
-		matchers[2] = { type: "eq", data: version.patch }
+	if (partialVersion.patch !== null && partialVersion.patch !== undefined) {
+		matchers[2] = { type: "eq", data: partialVersion.patch }
 	}
 
-	if (version.rev !== null && version.rev !== undefined) {
-		matchers[3] = { type: "eq", data: version.rev }
+	if (partialVersion.rev !== null && partialVersion.rev !== undefined) {
+		matchers[3] = { type: "eq", data: partialVersion.rev }
 	}
 
 	/** @type {[number, number, number, number]} */
@@ -401,6 +401,13 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 		if (!requestedPackage.names.includes(pkg.parsedContent.name)) {
 			continue
 		}
+
+		core.info(
+			`isCompatibleVersion(${anyVersionToString(pkg.parsedContent.version)},${anyVersionToString(requestedPackage.partialVersion)}) = ${isCompatibleVersion(
+				pkg.parsedContent.version,
+				requestedPackage.partialVersion
+			)}`
+		)
 
 		if (
 			!isCompatibleVersion(
@@ -449,6 +456,10 @@ function resolveBestSuitablePackage(requestedPackage, allRawPackages) {
 
 		return comparNrB - comparNrA
 	})
+
+	for (let i = 0; i < sortedPackages.length; ++i) {
+		core.info(`Sorted package nr. ${i}: '${sortedPackages[i].fullName}'`)
+	}
 
 	const rawPackage = sortedPackages[0]
 
