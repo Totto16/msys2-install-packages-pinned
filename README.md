@@ -45,11 +45,21 @@ Spec = (<Package> <Space>)*
 
 Space = ' '
 
-Package = <Name>(<Equals> <VersionSpecifier>)?
+Package = <Name>(<Equals> <PackageSettings>)?
 
 Name = "A valid package name"
 
 Equals = '='
+
+PackageSettings = (<VersionSpecifier>)? (<Colon> <PackageResolveSettings>)?
+
+Colon = ':'
+
+PackageResolveSettings = (<PackageResolveSettingIsVirtual>)? (<PackageResolveSettingNoPrefix>)?
+
+PackageResolveSettingIsVirtual = 'v' // sets the package as virtual package
+
+PackageResolveSettingNoPrefix = 'n' // doesn't try to prepend the prefix 
 
 VersionSpecifier = <SpecialVersionSpecifier> | <PartialSemverVersion>
 
@@ -74,3 +84,6 @@ A version can be a partial semver version or one of the special meanings, it als
 
 You can install a few packages in the same pacman call, by sepewrating them by space, so that e.g. `gcc-libs` and `gcc` are installed in the same go.
 Otherwise, you can seperate them with `\n` to install each one individually.
+
+The PackageResolveSettings are settings, that apply to a package, these are by default:
+add prefix and the package is not a virtual package. You can chnage it by adding one or more of the modifierer chars to the package name after the '=', see syntax for details.

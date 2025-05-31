@@ -36,15 +36,39 @@ const path = require("node:path")
  */
 
 /**
+ * @typedef {object} PackageResolveSettings
+ * @property {boolean} virtual
+ * @property {boolean} prependPrefix
+ */
+
+/**
  * @typedef {RequestedVersionSameAsTheRest} RequestedVersion
  */
 
 /**
- * @typedef {object} Package
+ * @typedef {object} PackageInput
+ * @property {string} name
+ * @property {PartialVersion | RequestedVersion} partialVersion
+ * @property {PackageResolveSettings} settings
+ */
+
+/**
+ * @typedef {object} RequestedPackageNormal
+ * @property {"normal"} type
  * @property {string[]} names
  * @property {string} originalName
  * @property {PartialVersion | RequestedVersion} partialVersion
  */
+
+/**
+ * @typedef {object} RequestedPackageVirtual
+ * @property {"virtual"} type
+ * @property {string} name
+ */
+
+/**
+ * @typedef {RequestedPackageNormal | RequestedPackageVirtual} RequestedPackage
+ **/
 
 /**
  * @typedef {object} Content
@@ -62,11 +86,22 @@ const path = require("node:path")
  */
 
 /**
- * @typedef {object} ResolvedPackage
+ * @typedef {object} ResolvedPackageNormal
+ * @property {"normal"} type
  * @property {string} name
  * @property {Version} parsedVersion
  * @property {string} fullUrl
  */
+
+/**
+ * @typedef {object} ResolvedPackageVirtual
+ * @property {"virtual"} type
+ * @property {string} name
+ */
+
+/**
+ * @typedef {ResolvedPackageNormal | ResolvedPackageVirtual} ResolvedPackage
+ **/
 
 /**
  * @param {string} inp
@@ -114,6 +149,9 @@ function parseContentFrom(inpName) {
 	return content
 }
 
+/** @type {PartialVersion} */
+const EMPTY_PARTIAL_VERSION = {}
+
 /**
  * @param {string} inpName
  * @returns {PartialVersion | RequestedVersion}
@@ -125,7 +163,7 @@ function parsePartialVersion(inpName) {
 	}
 
 	if (inpName === "") {
-		return {}
+		return EMPTY_PARTIAL_VERSION
 	}
 
 	/** @type {PartialVersion} */
@@ -166,50 +204,171 @@ function getArchNameFromMSystem(msystem) {
 /**
  * @param {string} input
  * @param {MSystem} msystem
- * @returns {string[]}
+ * @param {boolean} prependPrefix
+ * @returns {string}
  */
-function resolveNamesFromUerInputName(input, msystem) {
+function resolveVirtualName(input, msystem, prependPrefix) {
 	const archName = getArchNameFromMSystem(msystem)
 
 	const prefix = `mingw-w64-${archName}`
 
 	if (input.startsWith(prefix)) {
-		// if it already has a prefix, we don't strip it, as that would eb something else
+		// if it already has a prefix, we don't strip it, as that would be something else
+		return input
+	}
+
+	if (prependPrefix) {
+		return `${prefix}-${input}`
+	}
+
+	return input
+}
+
+/**
+ * @param {string} input
+ * @param {MSystem} msystem
+ * @param {boolean} prependPrefix
+ * @returns {string[]}
+ */
+function resolveNamesFromUserInputName(input, msystem, prependPrefix) {
+	const archName = getArchNameFromMSystem(msystem)
+
+	const prefix = `mingw-w64-${archName}`
+
+	if (input.startsWith(prefix)) {
+		// if it already has a prefix, we don't strip it, as that would be something else
+		return [input]
+	}
+
+	if (!prependPrefix) {
 		return [input]
 	}
 
 	return [input, `${prefix}-${input}`]
 }
 
+/** @type {PackageResolveSettings} */
+const DEFAULT_SETTINGS = { prependPrefix: true, virtual: false }
+
+/**
+ *
+ * @param {string} str
+ * @returns {PackageResolveSettings}
+ */
+function parseSettings(str) {
+	const settings = DEFAULT_SETTINGS
+
+	for (const char of str) {
+		switch (char) {
+			case "v": {
+				settings.virtual = true
+				break
+			}
+			case "n": {
+				settings.prependPrefix = false
+				break
+			}
+			default: {
+				throw new Error(`Invalid settings char: '${char}'`)
+			}
+		}
+	}
+
+	return settings
+}
+
+/**
+ *
+ * @param {string} packageStr
+ * @returns {PackageInput}
+ */
+function resolvePackageString(packageStr) {
+	/** @type {PackageInput} */
+	const result = {
+		name: "",
+		partialVersion: EMPTY_PARTIAL_VERSION,
+		settings: DEFAULT_SETTINGS,
+	}
+
+	if (packageStr.includes("=")) {
+		const [name1, ...rest1] = packageStr.split("=")
+
+		if (rest1.length != 1) {
+			throw new Error(`Invalid version specifier, it can't contain =`)
+		}
+
+		result.name = name1
+
+		const restStr = rest1[0]
+
+		if (restStr.includes(":")) {
+			const [version1, ...rest2] = restStr.split(":")
+
+			if (rest2.length != 1) {
+				throw new Error(
+					`Invalid settings specifier, it can't contain :`
+				)
+			}
+
+			result.partialVersion = parsePartialVersion(version1)
+
+			const settingsStr = rest2[0]
+
+			result.settings = parseSettings(settingsStr)
+		} else {
+			result.partialVersion = parsePartialVersion(restStr)
+		}
+	} else {
+		result.name = packageStr
+	}
+
+	return result
+}
+
 /**
  * @async
  * @param {string} spec
  * @param {MSystem} msystem
- * @returns {Package[]}
+ * @returns {RequestedPackage[]}
  */
 function resolveRequestedPackages(spec, msystem) {
 	const rawPackages = spec.split(" ")
 
-	/** @type {Package[]} */
+	/** @type {RequestedPackage[]} */
 	const packages = rawPackages.map((inp) => {
-		/** @type {Package} */
-		const result = { originalName: "", names: [], partialVersion: {} }
+		const packageInput = resolvePackageString(inp)
 
-		if (inp.includes("=")) {
-			const [name1, ...rest] = inp.split("=")
+		if (packageInput.settings.virtual) {
+			/** @type {string} */
+			const virtualName = resolveVirtualName(
+				packageInput.name,
+				msystem,
+				packageInput.settings.prependPrefix
+			)
 
-			if (rest.length != 1) {
-				throw new Error(`Invalid version specifier, it can't contain =`)
+			/** @type {RequestedPackageVirtual} */
+			const virtualPackage = {
+				type: "virtual",
+				name: virtualName,
 			}
-
-			result.names = resolveNamesFromUerInputName(name1, msystem)
-			result.originalName = name1
-			result.partialVersion = parsePartialVersion(rest[0])
-		} else {
-			result.names = resolveNamesFromUerInputName(inp, msystem)
-			result.originalName = inp
+			return virtualPackage
 		}
-		return result
+
+		const names = resolveNamesFromUserInputName(
+			packageInput.name,
+			msystem,
+			packageInput.settings.prependPrefix
+		)
+
+		/** @type {RequestedPackageNormal} */
+		const normalPackage = {
+			type: "normal",
+			names,
+			originalName: packageInput.name,
+			partialVersion: packageInput.partialVersion,
+		}
+
+		return normalPackage
 	})
 
 	return packages
@@ -219,7 +378,7 @@ function resolveRequestedPackages(spec, msystem) {
  * @async
  * @param {string} input
  * @param {MSystem} msystem
- * @returns {Package[][]}
+ * @returns {RequestedPackage[][]}
  */
 function resolveRequestedPackageSpecs(input, msystem) {
 	const specs = input.replace(/\r/g, "\n").replace(/\n\n/g, "\n").split("\n")
@@ -453,7 +612,7 @@ function getCompareNumberForVersion(version) {
 
 /**
  *
- * @param {Package} requestedPackage
+ * @param {RequestedPackage} requestedPackage
  * @param {RawPackage[]} allRawPackages
  * @param {Version[]} [prevVersions=[]]
  * @returns {ResolvedPackage}
@@ -463,6 +622,15 @@ function resolveBestSuitablePackage(
 	allRawPackages,
 	prevVersions = []
 ) {
+	if (requestedPackage.type === "virtual") {
+		/** @type {ResolvedPackageVirtual} */
+		const virtualResolvedPackage = {
+			type: "virtual",
+			name: requestedPackage.name,
+		}
+		return virtualResolvedPackage
+	}
+
 	let requestedVersion = requestedPackage.partialVersion
 
 	if (isRequestedVersion(requestedVersion)) {
@@ -554,19 +722,29 @@ function resolveBestSuitablePackage(
 		`Resolved package ${requestedPackage.originalName} to '${rawPackage.fullName}'`
 	)
 
-	/** @type {ResolvedPackage} */
-	const resolvedPackage = {
+	/** @type {ResolvedPackageNormal} */
+	const resolvedPackageNormal = {
+		type: "normal",
 		fullUrl: rawPackage.fullUrl,
 		name: rawPackage.fullName,
 		parsedVersion: rawPackage.parsedContent?.version,
 	}
 
-	return resolvedPackage
+	return resolvedPackageNormal
 }
 
 /**
  *
- * @param {Package[]} requestedPackages
+ * @param {ResolvedPackage} resolvedPackage
+ * @returns {resolvedPackage is ResolvedPackageNormal}
+ */
+function isNormalResolvedPackage(resolvedPackage) {
+	return resolvedPackage.type === "normal"
+}
+
+/**
+ *
+ * @param {RequestedPackage[]} requestedPackages
  * @param {RawPackage[]} allRawPackages
  * @returns {ResolvedPackage[]}
  */
@@ -574,12 +752,14 @@ function resolveBestSuitablePackages(requestedPackages, allRawPackages) {
 	/**
 	 *
 	 * @param {ResolvedPackage[]} acc
-	 * @param {Package} elem
+	 * @param {RequestedPackage} elem
 	 * @returns {ResolvedPackage[]}
 	 */
 	function reduceFn(acc, elem) {
 		/** @type {Version[]} */
-		const prevVersions = acc.map((a) => a.parsedVersion)
+		const prevVersions = acc
+			.filter(isNormalResolvedPackage)
+			.map((resolvedPackage) => resolvedPackage.parsedVersion)
 
 		const result = resolveBestSuitablePackage(
 			elem,
@@ -597,7 +777,7 @@ function resolveBestSuitablePackages(requestedPackages, allRawPackages) {
 
 /**
  *
- * @param {Package[][]} requestedPackageSpecs
+ * @param {RequestedPackage[][]} requestedPackageSpecs
  * @param {RawPackage[]} allRawPackages
  * @returns {ResolvedPackage[][]}
  */
@@ -617,7 +797,7 @@ function resolveBestSuitablePackageSpecs(
  * @returns {Promise<ResolvedPackage[][]>}
  */
 async function resolvePackageSpecs(input, msystem) {
-	/** @type {Package[][]} */
+	/** @type {RequestedPackage[][]} */
 	const requestedPackages = resolveRequestedPackageSpecs(input, msystem)
 
 	/** @type {string} */
@@ -783,6 +963,11 @@ async function installPackages(pkgs) {
 	const paths = [[], []]
 
 	for (const pkg of pkgs) {
+		if (pkg.type === "virtual") {
+			paths[0].push(pkg.name)
+			continue
+		}
+
 		core.info(`Downloading package '${pkg.name}' with url '${pkg.fullUrl}'`)
 		const pkgPath = await downloadFile(pkg.fullUrl, pkg.name)
 		const linuxPkgPath = windowsPathToLinuxPath(pkgPath)
