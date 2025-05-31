@@ -741,7 +741,7 @@ function resolveBestSuitablePackage(
 	const rawPackage = sortedPackages[0]
 
 	core.info(
-		`Resolved package ${requestedPackage.originalName} to '${rawPackage.fullName}'`
+		`Resolved package ${requestedPackage.originalName} with version ${anyVersionToString(requestedPackage.partialVersion)} to '${rawPackage.fullName}'`
 	)
 
 	/** @type {ResolvedPackageNormal} */
