@@ -111,7 +111,7 @@ function parseIntSafe(inp) {
 	const result = parseInt(inp)
 
 	if (isNaN(result)) {
-		throw new Error(`Not a avalid integer: '${inp}'`)
+		throw new Error(`Not a valid integer: '${inp}'`)
 	}
 	return result
 }
@@ -169,10 +169,32 @@ function parsePartialVersion(inpName) {
 	/** @type {PartialVersion} */
 	const version = {}
 
-	//TODO: implement more than this
+	const result = inpName.match(/^(\d*)(?:\.(\d*)(?:\.(\d*)(?:\-(\d*))?)?)?$/)
 
-	if (inpName.match(/^(\d*)$/)) {
-		version.major = parseIntSafe(inpName)
+	if (result === null) {
+		throw new Error(`Invalid partial version specifier: '${inpName}'`)
+	}
+
+	const [_, major, minor, patch, rev, ...rest] = result
+
+	if (rest.length != 0) {
+		throw new Error("Implementation error, the match has an invalid length")
+	}
+
+	if (major !== undefined) {
+		version.major = parseIntSafe(major)
+	}
+
+	if (minor !== undefined) {
+		version.minor = parseIntSafe(minor)
+	}
+
+	if (patch !== undefined) {
+		version.patch = parseIntSafe(patch)
+	}
+
+	if (rev !== undefined) {
+		version.rev = parseIntSafe(rev)
 	}
 
 	return version
