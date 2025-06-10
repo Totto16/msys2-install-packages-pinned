@@ -1,7 +1,7 @@
 import HTMLParser from "node-html-parser"
 import type { HTMLElement } from "node-html-parser"
 import core from "@actions/core"
-import http from "@actions/http-client"
+import * as http from "@actions/http-client"
 
 export type MSystem =
 	| "mingw32"
