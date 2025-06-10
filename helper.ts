@@ -362,14 +362,20 @@ export function getArchNameFromMSystem(msystem: MSystem): string {
 	}
 }
 
+export function getPrefixFromMSystem(msystem: MSystem): string {
+	const archName = getArchNameFromMSystem(msystem)
+
+	const prefix = `mingw-w64-${archName}`
+
+	return prefix
+}
+
 function resolveVirtualName(
 	input: string,
 	msystem: MSystem,
 	prependPrefix: boolean
 ): string {
-	const archName = getArchNameFromMSystem(msystem)
-
-	const prefix = `mingw-w64-${archName}`
+	const prefix = getPrefixFromMSystem(msystem)
 
 	if (input.startsWith(prefix)) {
 		// if it already has a prefix, we don't strip it, as that would be something else
@@ -388,9 +394,7 @@ function resolveNamesFromUserInputName(
 	msystem: MSystem,
 	prependPrefix: boolean
 ): string[] {
-	const archName = getArchNameFromMSystem(msystem)
-
-	const prefix = `mingw-w64-${archName}`
+	const prefix = getPrefixFromMSystem(msystem)
 
 	if (input.startsWith(prefix)) {
 		// if it already has a prefix, we don't strip it, as that would be something else

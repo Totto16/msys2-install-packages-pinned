@@ -1,5 +1,6 @@
 import {
 	extractPackages,
+	getPrefixFromMSystem,
 	getRawBody,
 	getRepoLink,
 	MSystem,
@@ -11,19 +12,85 @@ type TestCase = {
 	invalidPackages: (string | RegExp)[]
 }
 
+const commonRegexes = [
+	/^(.*)\-(?:(\d*)\.(\d*)(?:\.(\d*))?(.*)\-(\d*))\-([^.]*)\.(.*)$/, // suffix after version
+	/^(.*)\-(?:(\d*~)?(\d*)\.(\d*)(?:\.(\d*)(?:\.(\d*))?)?\-(\d*))\-([^.]*)\.(.*)$/, // <number>~ prefix + 4 numbers
+	/^(.*)\-(?:([0-9a-fA-Fr+]*)\.([0-9a-fA-Fr+]*)(?:\.([0-9a-fA-Fr+]*))?\-([0-9a-fA-Fr+]*))\-([^.]*)\.(.*)$/, // also allow hex numbers + r for revision + "+"
+]
+
+function escapeForRegex(inp: string) {
+	return inp.replace(/(\\|\-|\.)/g, (char) => {
+		return `\\${char}`
+	})
+}
+
+function generateRegexForUnknownVersion(
+	msystem: MSystem,
+	packages: string[]
+): RegExp {
+	const prefix = getPrefixFromMSystem(msystem)
+	const packagesRegex = packages.map(escapeForRegex).join("|")
+	return RegExp(
+		`^${escapeForRegex(prefix)}\-(${packagesRegex}).*\-${escapeForRegex("any.pkg.tar.zst")}`
+	)
+}
+
+//TODO: implement tests for the other architectures (atm not done, since a single test takes really long)
 const testCases: TestCase[] = [
-	// { architecture: "mingw32", invalidPackages: [] },
-	//  { architecture: "mingw64", invalidPackages: [] },
-	// 	{ architecture: "ucrt64", invalidPackages: [] },
+	//{ architecture: "mingw32", invalidPackages: [...commonRegexes] },
+	//{ architecture: "mingw64", invalidPackages: [...commonRegexes] },
+	//{ architecture: "ucrt64", invalidPackages: [...commonRegexes] },
 	{
 		architecture: "clang64",
 		invalidPackages: [
-			/^(.*)\-(?:(\d*)\.(\d*)(?:\.(\d*))?(.*)\-(\d*))\-([^.]*)\.(.*)$/, // suffix after version
-			/^(.*)\-(?:(\d*~)?(\d*)\.(\d*)(?:\.(\d*)(?:\.(\d*))?)?\-(\d*))\-([^.]*)\.(.*)$/, // <number>~ prefix + 4 numbers
-			/^(.*)\-(?:([0-9a-fA-Fr]*)\.([0-9a-fA-Fr]*)(?:\.([0-9a-fA-Fr]*))?\-([0-9a-fA-Fr]*))\-([^.]*)\.(.*)$/, // also allow hex numbers + r for revision
+			...commonRegexes,
+			"clang64.db.tar.zst",
+			"clang64.files",
+			"clang64.files.tar.zst",
+			generateRegexForUnknownVersion("clang64", [
+				"alure2",
+				"argon2",
+				"aspell",
+				"binaryen",
+				"bmake",
+				"bootloadhid",
+				"ca-certificates",
+				"cppreference-qt",
+				"dnssec-anchors",
+				"f2c",
+				"fontforge",
+				"gitg",
+				"glsl-optimizer",
+				"gsfonts",
+				"hid-bootloader",
+				"hlsl2glsl-git",
+				"lammps",
+				"libgoom2",
+				"libinih",
+				"libmpcdec",
+				"libreplaygain",
+				"libspiro",
+				"libuninameslist",
+				"llama.cpp",
+				"ngspice",
+				"opengl-man",
+				"perl-mozilla",
+				"python-diff",
+				"python-pyproject2setuppy",
+				"python-pywin32",
+				"python-starlette",
+				"re2",
+				"rust-analyzer",
+				"tclvfs-cvs",
+				"trompeloeil",
+				"tzdata",
+				"vapoursynth",
+				"wasi-libc",
+				"whisper.cpp",
+			]),
 		],
 	},
-	// 	{ architecture: "clangarm64", invalidPackages: [] },
+	//{ architecture: "clangarm64", invalidPackages: [...commonRegexes] },
 ]
 
 const validReasons: string[] = [
