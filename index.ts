@@ -1,12 +1,14 @@
 "use strict"
 
+import * as core from "@actions/core"
+import * as exec from "@actions/exec"
+import * as http from "@actions/http-client"
+import * as io from "@actions/io"
+
 import assert from "node:assert/strict"
-import core from "@actions/core"
-import exec from "@actions/exec"
-import fs from "node:fs"
-import http from "@actions/http-client"
-import io from "@actions/io"
+import * as fs from "node:fs"
 import path from "node:path"
+
 import {
 	getArchNameFromMSystem,
 	resolvePackageSpecs,

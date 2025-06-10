@@ -1,6 +1,7 @@
 import HTMLParser from "node-html-parser"
 import type { HTMLElement } from "node-html-parser"
-import core from "@actions/core"
+
+import * as core from "@actions/core"
 import * as http from "@actions/http-client"
 
 export type MSystem =
@@ -301,7 +302,7 @@ function parsePartialVersion(
 	return version
 }
 
- function resolvePackageString(packageStr: string): PackageInput {
+function resolvePackageString(packageStr: string): PackageInput {
 	const result: PackageInput = {
 		name: "",
 		partialVersion: EMPTY_PARTIAL_VERSION,
