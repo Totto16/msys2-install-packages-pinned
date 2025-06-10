@@ -71,6 +71,7 @@ const http = require("@actions/http-client")
  */
 
 /**
+ * @exports
  * @typedef {RequestedVersionSameAsTheRest} RequestedVersion
  */
 
@@ -180,9 +181,31 @@ function parseContentFrom(inpName) {
 }
 
 /**
+ * @exports
+ * @typedef {object} SkipItem
+ * @property {string} name
+ * @property {string} reason
+ */
+
+/**
+ * @exports
+ * @typedef {object} ExtractedPackagesErrors
+ * @property {SkipItem[]} skipped
+ * @property {string[]} failed
+ */
+
+/**
+ * @exports
+ * @typedef {object} ExtractedPackagesReturnValue
+ * @property {ExtractedPackagesErrors} errors
+ * @property {RawPackage[]} packages
+ */
+
+/**
+ * @exports
  * @param {string} html
  * @param {string} repoLink
- * @returns {RawPackage[]}
+ * @returns {ExtractedPackagesReturnValue}
  */
 export function extractPackages(repoLink, html) {
 	const parsedHtml = HTMLParser.parse(html)
@@ -213,20 +236,26 @@ export function extractPackages(repoLink, html) {
 	/** @type {RawPackage[]} */
 	const packages = []
 
+	/** @type {ExtractedPackagesErrors} */
+	const errors = { skipped: [], failed: [] }
+
 	for (const packageElement of packageElements) {
 		const rawLinkName = packageElement.attributes["href"]
 		const linkName = decodeURIComponent(packageElement.attributes["href"])
 
 		//TODO: use the sig to verify things later on
 		if (linkName.endsWith(".sig")) {
-			core.debug(`Skipped sig name ${linkName}`)
+			/** @type {SkipItem} */
+			const skip = { name: linkName, reason: "sig packages" }
+
+			errors.skipped.push(skip)
 			continue
 		}
 
 		const parsedContent = parseContentFrom(linkName)
 
 		if (parsedContent === null) {
-			core.debug(`parsedContent is null for: '${linkName}'`)
+			errors.failed.push(linkName)
 			continue
 		}
 
@@ -238,7 +267,10 @@ export function extractPackages(repoLink, html) {
 		packages.push(pack)
 	}
 
-	return packages
+	/** @type {ExtractedPackagesReturnValue} */
+	const result = { packages, errors }
+
+	return result
 }
 
 /** @type {PartialVersion} */
@@ -829,18 +861,23 @@ function resolveBestSuitablePackageSpecs(
 }
 
 /**
- * @async
- * @param {string} input
+ *
  * @param {MSystem} msystem
- * @returns {Promise<ResolvedPackage[][]>}
+ * @returns {string}
  */
-export async function resolvePackageSpecs(input, msystem) {
-	/** @type {RequestedPackage[][]} */
-	const requestedPackages = resolveRequestedPackageSpecs(input, msystem)
-
+export function getRepoLink(msystem) {
 	/** @type {string} */
 	const repoLink = `https://repo.msys2.org/mingw/${msystem}/`
 
+	return repoLink
+}
+
+/**
+ * @async
+ * @param {string} repoLink
+ * @returns {Promise<string>}
+ */
+export async function getRawBody(repoLink) {
 	const httpClient = new http.HttpClient()
 
 	const result = await httpClient.get(repoLink)
@@ -851,7 +888,38 @@ export async function resolvePackageSpecs(input, msystem) {
 
 	const body = await result.readBody()
 
-	const allRawPackages = extractPackages(repoLink, body)
+	return body
+}
+
+/**
+ * @async
+ * @param {string} input
+ * @param {MSystem} msystem
+ * @returns {Promise<ResolvedPackage[][]>}
+ */
+export async function resolvePackageSpecs(input, msystem) {
+	/** @type {RequestedPackage[][]} */
+	const requestedPackages = resolveRequestedPackageSpecs(input, msystem)
+
+	/** @type {string} */
+	const repoLink = getRepoLink(msystem)
+
+	/** @type {string} */
+	const body = await getRawBody(repoLink)
+
+	/** @type {ExtractedPackagesReturnValue} */
+	const result = extractPackages(repoLink, body)
+
+	for (const failed of result.errors.failed) {
+		core.debug(`failed to parse package from name for: '${failed}'`)
+	}
+
+	for (const { name, reason } of result.errors.skipped) {
+		core.debug(`Skipped package name ${name} because of: ${reason}`)
+	}
+
+	/** @type {RawPackage[]} */
+	const allRawPackages = result.packages
 
 	core.info(`Found ${allRawPackages.length} packages in total`)
 
