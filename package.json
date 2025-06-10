@@ -1,6 +1,6 @@
 {
   "name": "msys2-install-packages-pinned",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "main": "dist/index.js",
   "author": "Totto16",
   "license": "MIT",
