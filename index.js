@@ -1,25 +1,13 @@
-"strict"
+"use strict"
 
 const assert = require("node:assert/strict")
 const core = require("@actions/core")
 const exec = require("@actions/exec")
 const fs = require("node:fs")
-const HTMLParser = require("node-html-parser")
 const http = require("@actions/http-client")
 const io = require("@actions/io")
 const path = require("node:path")
-
-/**
- * @typedef {"mingw32" | "mingw64" | "ucrt64" | "clang64" | "clangarm64"} MSystem
- **/
-
-/**
- * @typedef {object} Version
- * @property {number} major
- * @property {number} minor
- * @property {number} patch
- * @property {number} rev
- */
+const helper = require("./helper.js")
 
 /**
  * @typedef {object} PartialVersion
@@ -71,25 +59,10 @@ const path = require("node:path")
  **/
 
 /**
- * @typedef {object} Content
- * @property {string} name
- * @property {Version} version
- * @property {string} target
- * @property {string} ext
- */
-
-/**
- * @typedef {object} RawPackage
- * @property {string} fullName
- * @property {Content} parsedContent
- * @property {string} fullUrl
- */
-
-/**
  * @typedef {object} ResolvedPackageNormal
  * @property {"normal"} type
  * @property {string} name
- * @property {Version} parsedVersion
+ * @property {helper.Version} parsedVersion
  * @property {string} fullUrl
  */
 
@@ -102,52 +75,6 @@ const path = require("node:path")
 /**
  * @typedef {ResolvedPackageNormal | ResolvedPackageVirtual} ResolvedPackage
  **/
-
-/**
- * @param {string} inp
- * @returns {number}
- */
-function parseIntSafe(inp) {
-	const result = parseInt(inp)
-
-	if (isNaN(result)) {
-		throw new Error(`Not a valid integer: '${inp}'`)
-	}
-	return result
-}
-
-/**
- * @param {string} inpName
- * @returns {Content|null}
- */
-function parseContentFrom(inpName) {
-	const result = inpName.match(
-		/^(.*)\-(?:(\d*)\.(\d*)\.(\d*)\-(\d*))\-([^.]*)\.(.*)$/
-	)
-
-	if (result === null) {
-		return null
-	}
-
-	const [_, pkgName, major, minor, patch, rev, target, ext, ...rest] = result
-
-	if (rest.length != 0) {
-		throw new Error("Implementation error, the match has an invalid length")
-	}
-
-	/** @type {Version} */
-	const version = {
-		major: parseIntSafe(major),
-		minor: parseIntSafe(minor),
-		patch: parseIntSafe(patch),
-		rev: parseIntSafe(rev),
-	}
-
-	/** @type {Content} */
-	const content = { ext, name: pkgName, target, version }
-
-	return content
-}
 
 /** @type {PartialVersion} */
 const EMPTY_PARTIAL_VERSION = {}
@@ -182,26 +109,26 @@ function parsePartialVersion(inpName) {
 	}
 
 	if (major !== undefined) {
-		version.major = parseIntSafe(major)
+		version.major = helper.parseIntSafe(major)
 	}
 
 	if (minor !== undefined) {
-		version.minor = parseIntSafe(minor)
+		version.minor = helper.parseIntSafe(minor)
 	}
 
 	if (patch !== undefined) {
-		version.patch = parseIntSafe(patch)
+		version.patch = helper.parseIntSafe(patch)
 	}
 
 	if (rev !== undefined) {
-		version.rev = parseIntSafe(rev)
+		version.rev = helper.parseIntSafe(rev)
 	}
 
 	return version
 }
 
 /**
- * @param {MSystem} msystem
+ * @param {helper.MSystem} msystem
  * @returns {string}
  */
 function getArchNameFromMSystem(msystem) {
@@ -225,7 +152,7 @@ function getArchNameFromMSystem(msystem) {
 
 /**
  * @param {string} input
- * @param {MSystem} msystem
+ * @param {helper.MSystem} msystem
  * @param {boolean} prependPrefix
  * @returns {string}
  */
@@ -248,7 +175,7 @@ function resolveVirtualName(input, msystem, prependPrefix) {
 
 /**
  * @param {string} input
- * @param {MSystem} msystem
+ * @param {helper.MSystem} msystem
  * @param {boolean} prependPrefix
  * @returns {string[]}
  */
@@ -350,7 +277,7 @@ function resolvePackageString(packageStr) {
 /**
  * @async
  * @param {string} spec
- * @param {MSystem} msystem
+ * @param {helper.MSystem} msystem
  * @returns {RequestedPackage[]}
  */
 function resolveRequestedPackages(spec, msystem) {
@@ -399,7 +326,7 @@ function resolveRequestedPackages(spec, msystem) {
 /**
  * @async
  * @param {string} input
- * @param {MSystem} msystem
+ * @param {helper.MSystem} msystem
  * @returns {RequestedPackage[][]}
  */
 function resolveRequestedPackageSpecs(input, msystem) {
@@ -409,70 +336,8 @@ function resolveRequestedPackageSpecs(input, msystem) {
 }
 
 /**
- * @param {string} html
- * @param {string} repoLink
- * @returns {RawPackage[]}
- */
-function extractPackages(repoLink, html) {
-	const parsedHtml = HTMLParser.parse(html)
-
-	/**
-	 * @param {HTMLParser.HTMLElement|null} element
-	 * @param {string} message
-	 * @returns {HTMLParser.HTMLElement}
-	 */
-	function parseAssert(element, message) {
-		if (element === null) {
-			throw new Error(
-				`Failed in parsing the html file of the package list: ${message}`
-			)
-		}
-		return element
-	}
-
-	const preElement = parseAssert(
-		parsedHtml.querySelector("pre"),
-		"pre element"
-	)
-
-	const parsedPreElement = HTMLParser.parse(preElement.textContent.trim())
-
-	const packageElements = parsedPreElement.querySelectorAll("a")
-
-	/** @type {RawPackage[]} */
-	const packages = []
-
-	for (const packageElement of packageElements) {
-		const rawLinkName = packageElement.attributes["href"]
-		const linkName = decodeURIComponent(packageElement.attributes["href"])
-
-		//TODO: use the sig to verify things later on
-		if (linkName.endsWith(".sig")) {
-			core.debug(`Skipped sig name ${linkName}`)
-			continue
-		}
-
-		const parsedContent = parseContentFrom(linkName)
-
-		if (parsedContent === null) {
-			core.debug(`parsedContent is null for: '${linkName}'`)
-			continue
-		}
-
-		const fullUrl = repoLink + rawLinkName
-
-		/** @type {RawPackage} */
-		const pack = { fullName: linkName, fullUrl, parsedContent }
-
-		packages.push(pack)
-	}
-
-	return packages
-}
-
-/**
  *
- * @param {Version} version
+ * @param {helper.Version} version
  * @returns {string}
  */
 function versionToString(version) {
@@ -481,7 +346,7 @@ function versionToString(version) {
 
 /**
  *
- * @param {Version | PartialVersion | RequestedVersion} version
+ * @param {helper.Version | PartialVersion | RequestedVersion} version
  * @returns {string}
  */
 function anyVersionToString(version) {
@@ -511,7 +376,9 @@ function anyVersionToString(version) {
 		return `v${version.major}.${version.minor}.${version.patch}`
 	}
 
-	return versionToString(/** @type {Version} */ (/** @type {any} */ version))
+	return versionToString(
+		/** @type {helper.Version} */ (/** @type {any} */ version)
+	)
 }
 
 /**
@@ -553,7 +420,7 @@ function matchesMatcher(matcher, value) {
 
 /**
  *
- * @param {Version} version
+ * @param {helper.Version} version
  * @param {PartialVersion} partialVersion
  * @returns {boolean}
  */
@@ -604,7 +471,7 @@ function isCompatibleVersion(version, partialVersion) {
 
 /**
  *
- * @param {RequestedVersion | Version | PartialVersion} version
+ * @param {RequestedVersion | helper.Version | PartialVersion} version
  * @returns {version is RequestedVersion}
  */
 function isRequestedVersion(version) {
@@ -621,7 +488,7 @@ const REV_MULT = 1
 
 /**
  *
- * @param {Version} version
+ * @param {helper.Version} version
  * @returns
  */
 function getCompareNumberForVersion(version) {
@@ -636,8 +503,8 @@ function getCompareNumberForVersion(version) {
 /**
  *
  * @param {RequestedPackage} requestedPackage
- * @param {RawPackage[]} allRawPackages
- * @param {Version[]} [prevVersions=[]]
+ * @param {helper.RawPackage[]} allRawPackages
+ * @param {helper.Version[]} [prevVersions=[]]
  * @returns {ResolvedPackage}
  */
 function resolveBestSuitablePackage(
@@ -693,7 +560,7 @@ function resolveBestSuitablePackage(
 		}
 	}
 
-	/** @type {RawPackage[]} */
+	/** @type {helper.RawPackage[]} */
 	const suitablePackages = []
 
 	for (const pkg of allRawPackages) {
@@ -768,7 +635,7 @@ function isNormalResolvedPackage(resolvedPackage) {
 /**
  *
  * @param {RequestedPackage[]} requestedPackages
- * @param {RawPackage[]} allRawPackages
+ * @param {helper.RawPackage[]} allRawPackages
  * @returns {ResolvedPackage[]}
  */
 function resolveBestSuitablePackages(requestedPackages, allRawPackages) {
@@ -779,7 +646,7 @@ function resolveBestSuitablePackages(requestedPackages, allRawPackages) {
 	 * @returns {ResolvedPackage[]}
 	 */
 	function reduceFn(acc, elem) {
-		/** @type {Version[]} */
+		/** @type {helper.Version[]} */
 		const prevVersions = acc
 			.filter(isNormalResolvedPackage)
 			.map((resolvedPackage) => resolvedPackage.parsedVersion)
@@ -801,7 +668,7 @@ function resolveBestSuitablePackages(requestedPackages, allRawPackages) {
 /**
  *
  * @param {RequestedPackage[][]} requestedPackageSpecs
- * @param {RawPackage[]} allRawPackages
+ * @param {helper.RawPackage[]} allRawPackages
  * @returns {ResolvedPackage[][]}
  */
 function resolveBestSuitablePackageSpecs(
@@ -816,7 +683,7 @@ function resolveBestSuitablePackageSpecs(
 /**
  * @async
  * @param {string} input
- * @param {MSystem} msystem
+ * @param {helper.MSystem} msystem
  * @returns {Promise<ResolvedPackage[][]>}
  */
 async function resolvePackageSpecs(input, msystem) {
@@ -836,7 +703,7 @@ async function resolvePackageSpecs(input, msystem) {
 
 	const body = await result.readBody()
 
-	const allRawPackages = extractPackages(repoLink, body)
+	const allRawPackages = helper.extractPackages(repoLink, body)
 
 	core.info(`Found ${allRawPackages.length} packages in total`)
 
@@ -1007,7 +874,7 @@ async function installPackages(pkgs) {
 
 /**
  *
- * @param {MSystem} msystem
+ * @param {helper.MSystem} msystem
  * @returns {Promise<void>}
  */
 async function installPrerequisites(msystem) {
@@ -1027,7 +894,7 @@ async function installPrerequisites(msystem) {
 /**
  * @async
  * @param {ResolvedPackage[][]} packages
- * @param {MSystem} msystem
+ * @param {helper.MSystem} msystem
  * @returns {Promise<void>}
  */
 async function installMultiplePackageSpecs(packages, msystem) {
@@ -1041,7 +908,7 @@ async function installMultiplePackageSpecs(packages, msystem) {
 /**
  *
  * @param {string} input
- * @returns {MSystem}
+ * @returns {helper.MSystem}
  */
 function toMSystem(input) {
 	switch (input.toLowerCase()) {
@@ -1058,7 +925,7 @@ function toMSystem(input) {
 		case "ucrt64":
 		case "clang64":
 		case "clangarm64":
-			return /** @type {MSystem} */ (
+			return /** @type {helper.MSystem} */ (
 				/** @type {any} */ input.toLowerCase()
 			)
 		default:
@@ -1089,7 +956,7 @@ async function main() {
 			required: true,
 		})
 
-		/** @type {MSystem} */
+		/** @type {helper.MSystem} */
 		const msystem = toMSystem(msystemInput)
 
 		setupCmd()

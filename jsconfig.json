@@ -16,5 +16,5 @@
 		"noEmit": true,
 		"exactOptionalPropertyTypes": true
 	},
-	"files": ["index.js"]
+	"files": ["index.js", "helper.js"]
 }
