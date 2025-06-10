@@ -235,8 +235,19 @@ const DEFAULT_SETTINGS: PackageResolveSettings = {
 	virtual: false,
 }
 
+/**
+ * @description DEEP copy the object
+ *
+ * Uses JSON.parse and JSOn.stringify internally
+ * @param inp
+ * @returns a deep copy
+ */
+function copyObject<T extends object>(inp: T): T {
+	return JSON.parse(JSON.stringify(inp))
+}
+
 function parseSettings(str: string): PackageResolveSettings {
-	const settings = DEFAULT_SETTINGS
+	const settings = copyObject(DEFAULT_SETTINGS) // we need to copy this, not reference it
 
 	for (const char of str) {
 		switch (char) {
@@ -266,7 +277,7 @@ function parsePartialVersion(
 	}
 
 	if (inpName === "") {
-		return EMPTY_PARTIAL_VERSION
+		return copyObject(EMPTY_PARTIAL_VERSION)
 	}
 
 	const version: PartialVersion = {}
@@ -305,8 +316,8 @@ function parsePartialVersion(
 function resolvePackageString(packageStr: string): PackageInput {
 	const result: PackageInput = {
 		name: "",
-		partialVersion: EMPTY_PARTIAL_VERSION,
-		settings: DEFAULT_SETTINGS,
+		partialVersion: copyObject(EMPTY_PARTIAL_VERSION),
+		settings: copyObject(DEFAULT_SETTINGS),
 	}
 
 	if (packageStr.includes("=")) {
@@ -416,7 +427,7 @@ function resolveRequestedPackages(
 	const rawPackages = spec.split(" ")
 
 	const packages: RequestedPackage[] = rawPackages.map((inp) => {
-		const packageInput = resolvePackageString(inp)
+		const packageInput = resolvePackageString(inp.trim())
 
 		if (packageInput.settings.virtual) {
 			const virtualName: string = resolveVirtualName(
@@ -455,9 +466,13 @@ export function resolveRequestedPackageSpecs(
 	input: string,
 	msystem: MSystem
 ): RequestedPackage[][] {
-	const specs = input.replace(/\r/g, "\n").replace(/\n\n/g, "\n").split("\n")
+	const specs = input
+		.replace(/\r/g, "\n")
+		.replace(/\n\n/g, "\n")
+		.split("\n")
+		.filter((line) => line !== "")
 
-	return specs.map((spec) => resolveRequestedPackages(spec, msystem))
+	return specs.map((spec) => resolveRequestedPackages(spec.trim(), msystem))
 }
 
 function isNormalResolvedPackage(

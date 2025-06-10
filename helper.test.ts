@@ -1,10 +1,18 @@
 import {
+	anyVersionToString,
 	extractPackages,
 	getPrefixFromMSystem,
 	getRawBody,
 	getRepoLink,
+	getSuitablePackages,
 	MSystem,
+	resolveNamesFromUserInputName,
+	resolveRequestedPackageSpecs,
 	type ExtractedPackagesReturnValue,
+	type PartialVersion,
+	type RawPackage,
+	type RequestedPackage,
+	type RequestedPackageNormal,
 } from "./helper"
 
 type TestCase = {
@@ -12,7 +20,7 @@ type TestCase = {
 	invalidPackages: (string | RegExp)[]
 }
 
-const commonRegexes = [
+const commonRegexes: RegExp[] = [
 	/^(.*)\-(?:(\d*)\.(\d*)(?:\.(\d*))?(.*)\-(\d*))\-([^.]*)\.(.*)$/, // suffix after version
 	/^(.*)\-(?:(\d*~)?(\d*)\.(\d*)(?:\.(\d*)(?:\.(\d*))?)?\-(\d*))\-([^.]*)\.(.*)$/, // <number>~ prefix + 4 numbers
 	/^(.*)\-(?:([0-9a-fA-Fr+]*)\.([0-9a-fA-Fr+]*)(?:\.([0-9a-fA-Fr+]*))?\-([0-9a-fA-Fr+]*))\-([^.]*)\.(.*)$/, // also allow hex numbers + r for revision + "+"
@@ -261,3 +269,107 @@ describe.each(testCases)(
 		)
 	}
 )
+
+type ParseTest = {
+	name: string
+	input: string
+	result: RequestedPackage[][]
+}
+
+const msystems: MSystem[] = [
+	"mingw32",
+	"mingw64",
+	"ucrt64",
+	"clang64",
+	"clangarm64",
+]
+
+describe.each(msystems)("parse tests for %s", (msystem: MSystem): void => {
+	const parseTestCases: ParseTest[] = [
+		{
+			name: "clang 20",
+			input: `
+	clang=20\r\n\tlibc++=20 libunwind=20:n
+`,
+			result: [
+				[
+					{
+						names: [
+							"clang",
+							`${getPrefixFromMSystem(msystem)}-clang`,
+						],
+						originalName: "clang",
+						partialVersion: {
+							major: 20,
+						},
+						type: "normal",
+					},
+				],
+				[
+					{
+						names: [
+							"libc++",
+							`${getPrefixFromMSystem(msystem)}-libc++`,
+						],
+						originalName: "libc++",
+						partialVersion: {
+							major: 20,
+						},
+						type: "normal",
+					},
+					{
+						names: ["libunwind"],
+						originalName: "libunwind",
+						partialVersion: {
+							major: 20,
+						},
+						type: "normal",
+					},
+				],
+			],
+		},
+		{
+			name: "gcc 14 with exact same libs",
+			input: `
+            gcc=14 gcc-libs=!
+`,
+			result: [
+				[
+					{
+						names: ["gcc", `${getPrefixFromMSystem(msystem)}-gcc`],
+						originalName: "gcc",
+						partialVersion: {
+							major: 14,
+						},
+						type: "normal",
+					},
+					{
+						names: [
+							"gcc-libs",
+							`${getPrefixFromMSystem(msystem)}-gcc-libs`,
+						],
+						originalName: "gcc-libs",
+						partialVersion: {
+							classification: "same_as_rest",
+							type: "requested",
+						},
+						type: "normal",
+					},
+				],
+			],
+		},
+	]
+
+	test.each(parseTestCases)(
+		"parsing packagesSpecs works as expected: $name",
+		async (testCase: ParseTest): Promise<void> => {
+			//TODO
+			const resolved = resolveRequestedPackageSpecs(
+				testCase.input,
+				msystem
+			)
+
+			expect(resolved).toEqual(testCase.result)
+		}
+	)
+})
