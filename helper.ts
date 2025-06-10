@@ -107,14 +107,25 @@ function parseIntSafe(inp: string): number {
 
 function parseContentFrom(inpName: string): Content | null {
 	const result = inpName.match(
-		/^(.*)\-(?:(\d*)\.(\d*)\.(\d*)\-(\d*))\-([^.]*)\.(.*)$/
+		/^(.*)\-(?:(\d*)\.(\d*)(?:\.(\d*))?\-(\d*))\-([^.]*)\.(.*)$/
 	)
 
 	if (result === null) {
 		return null
 	}
 
-	const [_, pkgName, major, minor, patch, rev, target, ext, ...rest] = result
+	const [_, pkgName, major, minor, patch, rev, target, ext, ...rest] =
+		result as [
+			string,
+			string,
+			string,
+			string,
+			string | undefined,
+			string,
+			string,
+			string,
+			...string[],
+		]
 
 	if (rest.length != 0) {
 		throw new Error("Implementation error, the match has an invalid length")
@@ -123,7 +134,7 @@ function parseContentFrom(inpName: string): Content | null {
 	const version: Version = {
 		major: parseIntSafe(major),
 		minor: parseIntSafe(minor),
-		patch: parseIntSafe(patch),
+		patch: patch ? parseIntSafe(patch) : 0,
 		rev: parseIntSafe(rev),
 	}
 

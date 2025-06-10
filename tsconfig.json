@@ -19,5 +19,5 @@
 		"lib": ["es5"],
 		"noUncheckedIndexedAccess": false
 	},
-	"files": ["index.ts", "helper.ts", "helper.test.ts"]
+	"files": ["index.ts", "helper.ts", "helper.test.ts", "global.d.ts"]
 }
