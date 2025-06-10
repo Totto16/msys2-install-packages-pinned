@@ -182,11 +182,18 @@ export function extractPackages(
 		const rawLinkName = packageElement.attributes["href"]
 		const linkName = decodeURIComponent(packageElement.attributes["href"])
 
-		//TODO: use the sig to verify things later on
 		if (linkName.endsWith(".sig")) {
-			const skip: SkipItem = { name: linkName, reason: "sig packages" }
-
-			errors.skipped.push(skip)
+			//TODO: use the sig to verify things later on
+			errors.skipped.push({ name: linkName, reason: "sig package" })
+			continue
+		} else if (linkName.endsWith(".db")) {
+			errors.skipped.push({ name: linkName, reason: ".db file" })
+			continue
+		} else if (linkName.endsWith(".old")) {
+			errors.skipped.push({ name: linkName, reason: ".old file" })
+			continue
+		} else if (linkName === "../") {
+			errors.skipped.push({ name: linkName, reason: "directory file" })
 			continue
 		}
 
