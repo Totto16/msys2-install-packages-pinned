@@ -13,8 +13,6 @@
 		"esModuleInterop": true,
 		"checkJs": true,
 		"allowJs": true,
-		"declaration": true,
-		"noEmit": true,
 		"exactOptionalPropertyTypes": true,
 		"module": "CommonJS",
 		"target": "es5",

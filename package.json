@@ -13,17 +13,19 @@
     "node-html-parser": "^7.0.1"
   },
   "scripts": {
-    "check": "tsc --project ./jsconfig.json",
+    "check": "tsc --project ./tsconfig.json --noEmit",
     "build": "webpack --config webpack.config.js",
     "compile": "npm run check && npm run build",
     "test": "jest ."
   },
   "devDependencies": {
+    "@tsconfig/strictest": "^2.0.5",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.14.1",
     "jest": "^30.0.0",
+    "ts-loader": "^9.5.2",
     "typescript": "^5.8.3",
-    "webpack": "^5.99.8",
+    "webpack": "^5.99.9",
     "webpack-cli": "^6.0.1"
   }
 }

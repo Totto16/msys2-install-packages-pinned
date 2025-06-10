@@ -12,7 +12,7 @@ import {
 	resolvePackageSpecs,
 	type MSystem,
 	type ResolvedPackage,
-} from "./helper.js"
+} from "./helper"
 
 let cmd: string | null = null
 
