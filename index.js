@@ -443,7 +443,8 @@ function extractPackages(repoLink, html) {
 	const packages = []
 
 	for (const packageElement of packageElements) {
-		const linkName = packageElement.attributes["href"]
+		const rawLinkName = packageElement.attributes["href"]
+		const linkName = decodeURIComponent(packageElement.attributes["href"])
 
 		//TODO: use the sig to verify things later on
 		if (linkName.endsWith(".sig")) {
@@ -458,7 +459,7 @@ function extractPackages(repoLink, html) {
 			continue
 		}
 
-		const fullUrl = repoLink + linkName
+		const fullUrl = repoLink + rawLinkName
 
 		/** @type {RawPackage} */
 		const pack = { fullName: linkName, fullUrl, parsedContent }
