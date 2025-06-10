@@ -301,7 +301,7 @@ function parsePartialVersion(
 	return version
 }
 
-function resolvePackageString(packageStr: string): PackageInput {
+ function resolvePackageString(packageStr: string): PackageInput {
 	const result: PackageInput = {
 		name: "",
 		partialVersion: EMPTY_PARTIAL_VERSION,
@@ -389,7 +389,7 @@ function resolveVirtualName(
 	return input
 }
 
-function resolveNamesFromUserInputName(
+export function resolveNamesFromUserInputName(
 	input: string,
 	msystem: MSystem,
 	prependPrefix: boolean
@@ -450,7 +450,7 @@ function resolveRequestedPackages(
 	return packages
 }
 
-function resolveRequestedPackageSpecs(
+export function resolveRequestedPackageSpecs(
 	input: string,
 	msystem: MSystem
 ): RequestedPackage[][] {
@@ -477,7 +477,7 @@ function versionToString(version: Version): string {
 	return `v${version.major}.${version.minor}.${version.patch}-${version.rev}`
 }
 
-function anyVersionToString(
+export function anyVersionToString(
 	version: Version | PartialVersion | RequestedVersion
 ): string {
 	if (isRequestedVersion(version)) {
@@ -581,19 +581,11 @@ function isCompatibleVersion(
 	return true
 }
 
-function resolveBestSuitablePackage(
-	requestedPackage: RequestedPackage,
+export function getSuitablePackages(
+	requestedPackage: RequestedPackageNormal,
 	allRawPackages: RawPackage[],
 	prevVersions: Version[] = []
-): ResolvedPackage {
-	if (requestedPackage.type === "virtual") {
-		const virtualResolvedPackage: ResolvedPackageVirtual = {
-			type: "virtual",
-			name: requestedPackage.name,
-		}
-		return virtualResolvedPackage
-	}
-
+): RawPackage[] {
 	let requestedVersion = requestedPackage.partialVersion
 
 	if (isRequestedVersion(requestedVersion)) {
@@ -650,6 +642,28 @@ function resolveBestSuitablePackage(
 
 		suitablePackages.push(pkg)
 	}
+
+	return suitablePackages
+}
+
+function resolveBestSuitablePackage(
+	requestedPackage: RequestedPackage,
+	allRawPackages: RawPackage[],
+	prevVersions: Version[] = []
+): ResolvedPackage {
+	if (requestedPackage.type === "virtual") {
+		const virtualResolvedPackage: ResolvedPackageVirtual = {
+			type: "virtual",
+			name: requestedPackage.name,
+		}
+		return virtualResolvedPackage
+	}
+
+	const suitablePackages: RawPackage[] = getSuitablePackages(
+		requestedPackage,
+		allRawPackages,
+		prevVersions
+	)
 
 	if (suitablePackages.length == 0) {
 		core.info(

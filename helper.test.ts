@@ -141,7 +141,48 @@ expect.extend({
 			}
 		}
 	},
+	toFindPackage(
+		allPackages: RawPackage[],
+		name: string,
+		msystem: MSystem,
+		version?: PartialVersion
+	) {
+		const requestedPackage: RequestedPackageNormal = {
+			type: "normal",
+			names: resolveNamesFromUserInputName(name, msystem, true),
+			originalName: name,
+			partialVersion: version ?? {},
+		}
+
+		const foundPackages: RawPackage[] = getSuitablePackages(
+			requestedPackage,
+			allPackages,
+			[]
+		)
+
+		if (foundPackages.length === 0) {
+			return {
+				message: () =>
+					`Didn't find package '${name}' with version ${anyVersionToString(version ?? {})}`,
+				pass: false,
+			}
+		} else {
+			return {
+				message: () =>
+					`Found package '${name}' with version ${anyVersionToString(version ?? {})}`,
+				pass: true,
+			}
+		}
+	},
 })
+
+function hasClang(msystem: MSystem): boolean {
+	return ["clang64", "clangarm64"].includes(msystem)
+}
+
+function hasGcc(msystem: MSystem): boolean {
+	return ["mingw32", "mingw64", "ucrt64"].includes(msystem)
+}
 
 describe.each(testCases)(
 	"helper module for arch '$architecture'",
@@ -163,6 +204,58 @@ describe.each(testCases)(
 				}
 
 				expect(result.errors.failed).toOnlyHavePackages(invalidPackages)
+
+				if (hasClang(architecture)) {
+					expect(result.packages).toFindPackage(
+						"libc++",
+						architecture,
+						{
+							major: 19,
+						}
+					)
+					expect(result.packages).toFindPackage(
+						"clang",
+						architecture,
+						{
+							major: 19,
+						}
+					)
+
+					expect(result.packages).toFindPackage(
+						"libc++",
+						architecture,
+						{
+							major: 20,
+						}
+					)
+					expect(result.packages).toFindPackage(
+						"clang",
+						architecture,
+						{
+							major: 20,
+						}
+					)
+				}
+
+				if (hasGcc(architecture)) {
+					expect(result.packages).toFindPackage("gcc", architecture, {
+						major: 14,
+					})
+					expect(result.packages).toFindPackage(
+						"gcc-libs",
+						architecture,
+						{ major: 14 }
+					)
+
+					expect(result.packages).toFindPackage("gcc", architecture, {
+						major: 15,
+					})
+					expect(result.packages).toFindPackage(
+						"gcc-libs",
+						architecture,
+						{ major: 15 }
+					)
+				}
 			},
 			60 * 1000
 		)
