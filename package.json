@@ -16,7 +16,7 @@
     "check": "tsc --project ./jsconfig.json",
     "build": "webpack --config webpack.config.js",
     "compile": "npm run check && npm run build",
-    "test": "jest test.js"
+    "test": "jest ."
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",

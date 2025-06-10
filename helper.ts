@@ -1,144 +1,102 @@
-const HTMLParser = require("node-html-parser")
-const core = require("@actions/core")
-const http = require("@actions/http-client")
+import HTMLParser from "node-html-parser"
+import type { HTMLElement } from "node-html-parser"
+import core from "@actions/core"
+import http from "@actions/http-client"
 
-/**
- * @exports
- * @typedef {"mingw32" | "mingw64" | "ucrt64" | "clang64" | "clangarm64"} MSystem
- **/
+export type MSystem =
+	| "mingw32"
+	| "mingw64"
+	| "ucrt64"
+	| "clang64"
+	| "clangarm64"
 
-/**
- * @exports
- * @typedef {object} Version
- * @property {number} major
- * @property {number} minor
- * @property {number} patch
- * @property {number} rev
- */
+export interface Version {
+	major: number
+	minor: number
+	patch: number
+	rev: number
+}
 
-/**
- * @exports
- * @typedef {object} Content
- * @property {string} name
- * @property {Version} version
- * @property {string} target
- * @property {string} ext
- */
+export interface Content {
+	name: string
+	version: Version
+	target: string
+	ext: string
+}
 
-/**
- * @exports
- * @typedef {object} RawPackage
- * @property {string} fullName
- * @property {Content} parsedContent
- * @property {string} fullUrl
- */
+export interface RawPackage {
+	fullName: string
+	parsedContent: Content
+	fullUrl: string
+}
 
-/**
- * @exports
- * @typedef {object} ResolvedPackageNormal
- * @property {"normal"} type
- * @property {string} name
- * @property {Version} parsedVersion
- * @property {string} fullUrl
- */
+export interface ResolvedPackageNormal {
+	type: "normal"
+	name: string
+	parsedVersion: Version
+	fullUrl: string
+}
 
-/**
- * @exports
- * @typedef {object} ResolvedPackageVirtual
- * @property {"virtual"} type
- * @property {string} name
- */
+export interface ResolvedPackageVirtual {
+	type: "virtual"
+	name: string
+}
 
-/**
- * @exports
- * @typedef {ResolvedPackageNormal | ResolvedPackageVirtual} ResolvedPackage
- **/
+export type ResolvedPackage = ResolvedPackageNormal | ResolvedPackageVirtual
 
-/**
- * @exports
- * @typedef {object} PartialVersion
- * @property {number|null} [major]
- * @property {number|null} [minor]
- * @property {number|null} [patch]
- * @property {number|null} [rev]
- */
+export interface PartialVersion {
+	major?: number | null
+	minor?: number | null
+	patch?: number | null
+	rev?: number | null
+}
 
-/**
- * @exports
- * @typedef {object} RequestedVersionSameAsTheRest
- * @property {"requested"} type
- * @property {"same_as_rest"} classification
- */
+export interface RequestedVersionSameAsTheRest {
+	type: "requested"
+	classification: "same_as_rest"
+}
 
-/**
- * @exports
- * @typedef {RequestedVersionSameAsTheRest} RequestedVersion
- */
+export type RequestedVersion = RequestedVersionSameAsTheRest
 
-/**
- * @exports
- * @typedef {object} RequestedPackageNormal
- * @property {"normal"} type
- * @property {string[]} names
- * @property {string} originalName
- * @property {PartialVersion | RequestedVersion} partialVersion
- */
+export interface RequestedPackageNormal {
+	type: "normal"
+	names: string[]
+	originalName: string
+	partialVersion: PartialVersion | RequestedVersion
+}
 
-/**
- * @exports
- * @typedef {object} RequestedPackageVirtual
- * @property {"virtual"} type
- * @property {string} name
- */
+export interface RequestedPackageVirtual {
+	type: "virtual"
+	name: string
+}
 
-/**
- * @exports
- * @typedef {RequestedPackageNormal | RequestedPackageVirtual} RequestedPackage
- **/
+export type RequestedPackage = RequestedPackageNormal | RequestedPackageVirtual
 
-/**
- * @exports
- * @typedef {object} PackageResolveSettings
- * @property {boolean} virtual
- * @property {boolean} prependPrefix
- */
+export interface PackageResolveSettings {
+	virtual: boolean
+	prependPrefix: boolean
+}
 
-/**
- * @exports
- * @typedef {object} PackageInput
- * @property {string} name
- * @property {PartialVersion | RequestedVersion} partialVersion
- * @property {PackageResolveSettings} settings
- */
+export interface PackageInput {
+	name: string
+	partialVersion: PartialVersion | RequestedVersion
+	settings: PackageResolveSettings
+}
 
-/**
- * @exports
- * @typedef {object} EqMatcher
- * @property {"eq"} type
- * @property {number} data
- */
+export interface EqMatcher {
+	type: "eq"
+	data: number
+}
 
-/**
- * @exports
- * @typedef {object} AnyMatcher
- * @property {"any"} type
- */
+export interface AnyMatcher {
+	type: "any"
+}
 
-/**
- * @exports
- * @typedef {EqMatcher | AnyMatcher} Matcher
- **/
+export type Matcher = EqMatcher | AnyMatcher
 
-/**
- * @exports
- * @typedef {[Matcher, Matcher, Matcher, Matcher]} Matchers
- **/
+export type Matchers = [Matcher, Matcher, Matcher, Matcher]
 
-/**
- * @param {string} inp
- * @returns {number}
- */
-function parseIntSafe(inp) {
+function parseIntSafe(inp: string): number {
 	const result = parseInt(inp)
 
 	if (isNaN(result)) {
@@ -147,11 +105,7 @@ function parseIntSafe(inp) {
 	return result
 }
 
-/**
- * @param {string} inpName
- * @returns {Content|null}
- */
-function parseContentFrom(inpName) {
+function parseContentFrom(inpName: string): Content | null {
 	const result = inpName.match(
 		/^(.*)\-(?:(\d*)\.(\d*)\.(\d*)\-(\d*))\-([^.]*)\.(.*)$/
 	)
@@ -166,56 +120,43 @@ function parseContentFrom(inpName) {
 		throw new Error("Implementation error, the match has an invalid length")
 	}
 
-	/** @type {Version} */
-	const version = {
+	const version: Version = {
 		major: parseIntSafe(major),
 		minor: parseIntSafe(minor),
 		patch: parseIntSafe(patch),
 		rev: parseIntSafe(rev),
 	}
 
-	/** @type {Content} */
-	const content = { ext, name: pkgName, target, version }
+	const content: Content = { ext, name: pkgName, target, version }
 
 	return content
 }
 
-/**
- * @exports
- * @typedef {object} SkipItem
- * @property {string} name
- * @property {string} reason
- */
+export interface SkipItem {
+	name: string
+	reason: string
+}
 
-/**
- * @exports
- * @typedef {object} ExtractedPackagesErrors
- * @property {SkipItem[]} skipped
- * @property {string[]} failed
- */
+export interface ExtractedPackagesErrors {
+	skipped: SkipItem[]
+	failed: string[]
+}
 
-/**
- * @exports
- * @typedef {object} ExtractedPackagesReturnValue
- * @property {ExtractedPackagesErrors} errors
- * @property {RawPackage[]} packages
- */
+export interface ExtractedPackagesReturnValue {
+	errors: ExtractedPackagesErrors
+	packages: RawPackage[]
+}
 
-/**
- * @exports
- * @param {string} html
- * @param {string} repoLink
- * @returns {ExtractedPackagesReturnValue}
- */
-export function extractPackages(repoLink, html) {
+export function extractPackages(
+	repoLink: string,
+	html: string
+): ExtractedPackagesReturnValue {
 	const parsedHtml = HTMLParser.parse(html)
 
-	/**
-	 * @param {HTMLParser.HTMLElement|null} element
-	 * @param {string} message
-	 * @returns {HTMLParser.HTMLElement}
-	 */
-	function parseAssert(element, message) {
+	function parseAssert(
+		element: HTMLElement | null,
+		message: string
+	): HTMLElement {
 		if (element === null) {
 			throw new Error(
 				`Failed in parsing the html file of the package list: ${message}`
@@ -233,11 +174,9 @@ export function extractPackages(repoLink, html) {
 
 	const packageElements = parsedPreElement.querySelectorAll("a")
 
-	/** @type {RawPackage[]} */
-	const packages = []
+	const packages: RawPackage[] = []
 
-	/** @type {ExtractedPackagesErrors} */
-	const errors = { skipped: [], failed: [] }
+	const errors: ExtractedPackagesErrors = { skipped: [], failed: [] }
 
 	for (const packageElement of packageElements) {
 		const rawLinkName = packageElement.attributes["href"]
@@ -245,8 +184,7 @@ export function extractPackages(repoLink, html) {
 
 		//TODO: use the sig to verify things later on
 		if (linkName.endsWith(".sig")) {
-			/** @type {SkipItem} */
-			const skip = { name: linkName, reason: "sig packages" }
+			const skip: SkipItem = { name: linkName, reason: "sig packages" }
 
 			errors.skipped.push(skip)
 			continue
@@ -261,30 +199,24 @@ export function extractPackages(repoLink, html) {
 
 		const fullUrl = repoLink + rawLinkName
 
-		/** @type {RawPackage} */
-		const pack = { fullName: linkName, fullUrl, parsedContent }
+		const pack: RawPackage = { fullName: linkName, fullUrl, parsedContent }
 
 		packages.push(pack)
 	}
 
-	/** @type {ExtractedPackagesReturnValue} */
-	const result = { packages, errors }
+	const result: ExtractedPackagesReturnValue = { packages, errors }
 
 	return result
 }
 
-/** @type {PartialVersion} */
-const EMPTY_PARTIAL_VERSION = {}
+const EMPTY_PARTIAL_VERSION: PartialVersion = {}
 
-/** @type {PackageResolveSettings} */
-const DEFAULT_SETTINGS = { prependPrefix: true, virtual: false }
+const DEFAULT_SETTINGS: PackageResolveSettings = {
+	prependPrefix: true,
+	virtual: false,
+}
 
-/**
- *
- * @param {string} str
- * @returns {PackageResolveSettings}
- */
-function parseSettings(str) {
+function parseSettings(str: string): PackageResolveSettings {
 	const settings = DEFAULT_SETTINGS
 
 	for (const char of str) {
@@ -306,11 +238,9 @@ function parseSettings(str) {
 	return settings
 }
 
-/**
- * @param {string} inpName
- * @returns {PartialVersion | RequestedVersion}
- */
-function parsePartialVersion(inpName) {
+function parsePartialVersion(
+	inpName: string
+): PartialVersion | RequestedVersion {
 	// "!"" means same as the rest e.g. for gcc and gcc-libs
 	if (inpName == "!") {
 		return { type: "requested", classification: "same_as_rest" }
@@ -320,8 +250,7 @@ function parsePartialVersion(inpName) {
 		return EMPTY_PARTIAL_VERSION
 	}
 
-	/** @type {PartialVersion} */
-	const version = {}
+	const version: PartialVersion = {}
 
 	const result = inpName.match(/^(\d*)(?:\.(\d*)(?:\.(\d*)(?:\-(\d*))?)?)?$/)
 
@@ -354,14 +283,8 @@ function parsePartialVersion(inpName) {
 	return version
 }
 
-/**
- *
- * @param {string} packageStr
- * @returns {PackageInput}
- */
-function resolvePackageString(packageStr) {
-	/** @type {PackageInput} */
-	const result = {
+function resolvePackageString(packageStr: string): PackageInput {
+	const result: PackageInput = {
 		name: "",
 		partialVersion: EMPTY_PARTIAL_VERSION,
 		settings: DEFAULT_SETTINGS,
@@ -402,11 +325,7 @@ function resolvePackageString(packageStr) {
 	return result
 }
 
-/**
- * @param {MSystem} msystem
- * @returns {string}
- */
-export function getArchNameFromMSystem(msystem) {
+export function getArchNameFromMSystem(msystem: MSystem): string {
 	switch (msystem) {
 		case "mingw32":
 			return "i686"
@@ -425,13 +344,11 @@ export function getArchNameFromMSystem(msystem) {
 	}
 }
 
-/**
- * @param {string} input
- * @param {MSystem} msystem
- * @param {boolean} prependPrefix
- * @returns {string}
- */
-function resolveVirtualName(input, msystem, prependPrefix) {
+function resolveVirtualName(
+	input: string,
+	msystem: MSystem,
+	prependPrefix: boolean
+): string {
 	const archName = getArchNameFromMSystem(msystem)
 
 	const prefix = `mingw-w64-${archName}`
@@ -448,13 +365,11 @@ function resolveVirtualName(input, msystem, prependPrefix) {
 	return input
 }
 
-/**
- * @param {string} input
- * @param {MSystem} msystem
- * @param {boolean} prependPrefix
- * @returns {string[]}
- */
-function resolveNamesFromUserInputName(input, msystem, prependPrefix) {
+function resolveNamesFromUserInputName(
+	input: string,
+	msystem: MSystem,
+	prependPrefix: boolean
+): string[] {
 	const archName = getArchNameFromMSystem(msystem)
 
 	const prefix = `mingw-w64-${archName}`
@@ -471,29 +386,23 @@ function resolveNamesFromUserInputName(input, msystem, prependPrefix) {
 	return [input, `${prefix}-${input}`]
 }
 
-/**
- * @async
- * @param {string} spec
- * @param {MSystem} msystem
- * @returns {RequestedPackage[]}
- */
-function resolveRequestedPackages(spec, msystem) {
+function resolveRequestedPackages(
+	spec: string,
+	msystem: MSystem
+): RequestedPackage[] {
 	const rawPackages = spec.split(" ")
 
-	/** @type {RequestedPackage[]} */
-	const packages = rawPackages.map((inp) => {
+	const packages: RequestedPackage[] = rawPackages.map((inp) => {
 		const packageInput = resolvePackageString(inp)
 
 		if (packageInput.settings.virtual) {
-			/** @type {string} */
-			const virtualName = resolveVirtualName(
+			const virtualName: string = resolveVirtualName(
 				packageInput.name,
 				msystem,
 				packageInput.settings.prependPrefix
 			)
 
-			/** @type {RequestedPackageVirtual} */
-			const virtualPackage = {
+			const virtualPackage: RequestedPackageVirtual = {
 				type: "virtual",
 				name: virtualName,
 			}
@@ -506,8 +415,7 @@ function resolveRequestedPackages(spec, msystem) {
 			packageInput.settings.prependPrefix
 		)
 
-		/** @type {RequestedPackageNormal} */
-		const normalPackage = {
+		const normalPackage: RequestedPackageNormal = {
 			type: "normal",
 			names,
 			originalName: packageInput.name,
@@ -520,54 +428,36 @@ function resolveRequestedPackages(spec, msystem) {
 	return packages
 }
 
-/**
- * @async
- * @param {string} input
- * @param {MSystem} msystem
- * @returns {RequestedPackage[][]}
- */
-function resolveRequestedPackageSpecs(input, msystem) {
+function resolveRequestedPackageSpecs(
+	input: string,
+	msystem: MSystem
+): RequestedPackage[][] {
 	const specs = input.replace(/\r/g, "\n").replace(/\n\n/g, "\n").split("\n")
 
 	return specs.map((spec) => resolveRequestedPackages(spec, msystem))
 }
 
-/**
- *
- * @param {ResolvedPackage} resolvedPackage
- * @returns {resolvedPackage is ResolvedPackageNormal}
- */
-function isNormalResolvedPackage(resolvedPackage) {
+function isNormalResolvedPackage(
+	resolvedPackage: ResolvedPackage
+): resolvedPackage is ResolvedPackageNormal {
 	return resolvedPackage.type === "normal"
 }
 
-/**
- *
- * @param {RequestedVersion | Version | PartialVersion} version
- * @returns {version is RequestedVersion}
- */
-function isRequestedVersion(version) {
-	/** @type {RequestedVersion | {type:undefined}} */
-	const v = /** @type {any} */ (version)
+function isRequestedVersion(
+	version: RequestedVersion | Version | PartialVersion
+): version is RequestedVersion {
+	const v = version as unknown as RequestedVersion | { type: undefined }
 
 	return v.type === "requested"
 }
 
-/**
- *
- * @param {Version} version
- * @returns {string}
- */
-function versionToString(version) {
+function versionToString(version: Version): string {
 	return `v${version.major}.${version.minor}.${version.patch}-${version.rev}`
 }
 
-/**
- *
- * @param {Version | PartialVersion | RequestedVersion} version
- * @returns {string}
- */
-function anyVersionToString(version) {
+function anyVersionToString(
+	version: Version | PartialVersion | RequestedVersion
+): string {
 	if (isRequestedVersion(version)) {
 		if (version.classification === "same_as_rest") {
 			return "<same_as_rest>"
@@ -594,24 +484,15 @@ function anyVersionToString(version) {
 		return `v${version.major}.${version.minor}.${version.patch}`
 	}
 
-	return versionToString(/** @type {Version} */ (/** @type {any} */ version))
+	return versionToString(version as Version)
 }
 
-/** @type {number} */
-const MAJOR_MULT = 10 ** 9
-/** @type {number} */
-const MINOR_MULT = 10 ** 6
-/** @type {number} */
-const PATCH_MULT = 10 ** 3
-/** @type {number} */
-const REV_MULT = 1
+const MAJOR_MULT: number = 10 ** 9
+const MINOR_MULT: number = 10 ** 6
+const PATCH_MULT: number = 10 ** 3
+const REV_MULT: number = 1
 
-/**
- *
- * @param {Version} version
- * @returns
- */
-function getCompareNumberForVersion(version) {
+function getCompareNumberForVersion(version: Version) {
 	return (
 		version.major * MAJOR_MULT +
 		version.minor * MINOR_MULT +
@@ -620,13 +501,7 @@ function getCompareNumberForVersion(version) {
 	)
 }
 
-/**
- *
- * @param {Matcher} matcher
- * @param {number} value
- * @returns {boolean}
- */
-function matchesMatcher(matcher, value) {
+function matchesMatcher(matcher: Matcher, value: number): boolean {
 	if (matcher.type === "any") {
 		return true
 	}
@@ -638,15 +513,11 @@ function matchesMatcher(matcher, value) {
 	throw new Error(`Unrecognized matcher: ${JSON.stringify(matcher)}`)
 }
 
-/**
- *
- * @param {Version} version
- * @param {PartialVersion} partialVersion
- * @returns {boolean}
- */
-function isCompatibleVersion(version, partialVersion) {
-	/** @type {Matchers} */
-	const matchers = [
+function isCompatibleVersion(
+	version: Version,
+	partialVersion: PartialVersion
+): boolean {
+	const matchers: Matchers = [
 		{ type: "any" },
 		{ type: "any" },
 		{ type: "any" },
@@ -669,8 +540,7 @@ function isCompatibleVersion(version, partialVersion) {
 		matchers[3] = { type: "eq", data: partialVersion.rev }
 	}
 
-	/** @type {[number, number, number, number]} */
-	const versionArray = [
+	const versionArray: [number, number, number, number] = [
 		version.major,
 		version.minor,
 		version.patch,
@@ -689,21 +559,13 @@ function isCompatibleVersion(version, partialVersion) {
 	return true
 }
 
-/**
- *
- * @param {RequestedPackage} requestedPackage
- * @param {RawPackage[]} allRawPackages
- * @param {Version[]} [prevVersions=[]]
- * @returns {ResolvedPackage}
- */
 function resolveBestSuitablePackage(
-	requestedPackage,
-	allRawPackages,
-	prevVersions = []
-) {
+	requestedPackage: RequestedPackage,
+	allRawPackages: RawPackage[],
+	prevVersions: Version[] = []
+): ResolvedPackage {
 	if (requestedPackage.type === "virtual") {
-		/** @type {ResolvedPackageVirtual} */
-		const virtualResolvedPackage = {
+		const virtualResolvedPackage: ResolvedPackageVirtual = {
 			type: "virtual",
 			name: requestedPackage.name,
 		}
@@ -749,8 +611,7 @@ function resolveBestSuitablePackage(
 		}
 	}
 
-	/** @type {RawPackage[]} */
-	const suitablePackages = []
+	const suitablePackages: RawPackage[] = []
 
 	for (const pkg of allRawPackages) {
 		if (pkg.parsedContent === null) {
@@ -801,8 +662,7 @@ function resolveBestSuitablePackage(
 		`Resolved package ${requestedPackage.originalName} with version ${anyVersionToString(requestedPackage.partialVersion)} to '${rawPackage.fullName}'`
 	)
 
-	/** @type {ResolvedPackageNormal} */
-	const resolvedPackageNormal = {
+	const resolvedPackageNormal: ResolvedPackageNormal = {
 		type: "normal",
 		fullUrl: rawPackage.fullUrl,
 		name: rawPackage.fullName,
@@ -812,22 +672,15 @@ function resolveBestSuitablePackage(
 	return resolvedPackageNormal
 }
 
-/**
- *
- * @param {RequestedPackage[]} requestedPackages
- * @param {RawPackage[]} allRawPackages
- * @returns {ResolvedPackage[]}
- */
-function resolveBestSuitablePackages(requestedPackages, allRawPackages) {
-	/**
-	 *
-	 * @param {ResolvedPackage[]} acc
-	 * @param {RequestedPackage} elem
-	 * @returns {ResolvedPackage[]}
-	 */
-	function reduceFn(acc, elem) {
-		/** @type {Version[]} */
-		const prevVersions = acc
+function resolveBestSuitablePackages(
+	requestedPackages: RequestedPackage[],
+	allRawPackages: RawPackage[]
+): ResolvedPackage[] {
+	function reduceFn(
+		acc: ResolvedPackage[],
+		elem: RequestedPackage
+	): ResolvedPackage[] {
+		const prevVersions: Version[] = acc
 			.filter(isNormalResolvedPackage)
 			.map((resolvedPackage) => resolvedPackage.parsedVersion)
 
@@ -845,39 +698,22 @@ function resolveBestSuitablePackages(requestedPackages, allRawPackages) {
 	return requestedPackages.reduce(reduceFn, [])
 }
 
-/**
- *
- * @param {RequestedPackage[][]} requestedPackageSpecs
- * @param {RawPackage[]} allRawPackages
- * @returns {ResolvedPackage[][]}
- */
 function resolveBestSuitablePackageSpecs(
-	requestedPackageSpecs,
-	allRawPackages
-) {
+	requestedPackageSpecs: RequestedPackage[][],
+	allRawPackages: RawPackage[]
+): ResolvedPackage[][] {
 	return requestedPackageSpecs.map((reqSpec) =>
 		resolveBestSuitablePackages(reqSpec, allRawPackages)
 	)
 }
 
-/**
- *
- * @param {MSystem} msystem
- * @returns {string}
- */
-export function getRepoLink(msystem) {
-	/** @type {string} */
-	const repoLink = `https://repo.msys2.org/mingw/${msystem}/`
+export function getRepoLink(msystem: MSystem): string {
+	const repoLink: string = `https://repo.msys2.org/mingw/${msystem}/`
 
 	return repoLink
 }
 
-/**
- * @async
- * @param {string} repoLink
- * @returns {Promise<string>}
- */
-export async function getRawBody(repoLink) {
+export async function getRawBody(repoLink: string): Promise<string> {
 	const httpClient = new http.HttpClient()
 
 	const result = await httpClient.get(repoLink)
@@ -891,24 +727,18 @@ export async function getRawBody(repoLink) {
 	return body
 }
 
-/**
- * @async
- * @param {string} input
- * @param {MSystem} msystem
- * @returns {Promise<ResolvedPackage[][]>}
- */
-export async function resolvePackageSpecs(input, msystem) {
-	/** @type {RequestedPackage[][]} */
-	const requestedPackages = resolveRequestedPackageSpecs(input, msystem)
+export async function resolvePackageSpecs(
+	input: string,
+	msystem: MSystem
+): Promise<ResolvedPackage[][]> {
+	const requestedPackages: RequestedPackage[][] =
+		resolveRequestedPackageSpecs(input, msystem)
 
-	/** @type {string} */
-	const repoLink = getRepoLink(msystem)
+	const repoLink: string = getRepoLink(msystem)
 
-	/** @type {string} */
-	const body = await getRawBody(repoLink)
+	const body: string = await getRawBody(repoLink)
 
-	/** @type {ExtractedPackagesReturnValue} */
-	const result = extractPackages(repoLink, body)
+	const result: ExtractedPackagesReturnValue = extractPackages(repoLink, body)
 
 	for (const failed of result.errors.failed) {
 		core.debug(`failed to parse package from name for: '${failed}'`)
@@ -918,8 +748,7 @@ export async function resolvePackageSpecs(input, msystem) {
 		core.debug(`Skipped package name ${name} because of: ${reason}`)
 	}
 
-	/** @type {RawPackage[]} */
-	const allRawPackages = result.packages
+	const allRawPackages: RawPackage[] = result.packages
 
 	core.info(`Found ${allRawPackages.length} packages in total`)
 
